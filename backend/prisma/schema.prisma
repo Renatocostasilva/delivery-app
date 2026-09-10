@@ -42,6 +42,19 @@ enum TipoEntrega {
   ENTREGA
 }
 
+/// Usuário administrativo (backend/admin). Senha guardada como hash (bcrypt).
+model AdminUser {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  senhaHash String
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+}
+
 /// Categoria de produtos (ex.: Bolos, Doces, Salgados).
 model Categoria {
   id        Int      @id @default(autoincrement())
