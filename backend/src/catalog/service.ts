@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http.js";
 
 function isEmPromocao(produto: {
-  precoPromocional: string | null;
+  precoPromocional: Prisma.Decimal | null;
   dataInicioPromocao: Date | null;
   dataFimPromocao: Date | null;
 }): boolean {

@@ -29,3 +29,28 @@ describe("GET /health", () => {
     expect(body).toEqual({ status: "ok" });
   });
 });
+
+describe("CORS", () => {
+  it("reflects Origin header on responses", async () => {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:5173",
+    );
+  });
+
+  it("answers preflight requests without a CORS origin", async () => {
+    const res = await fetch(`${baseUrl}/health`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "http://localhost:5173",
+        "Access-Control-Request-Method": "GET",
+      },
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:5173",
+    );
+  });
+});

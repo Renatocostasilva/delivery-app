@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getHome, getCategories, getProducts } from './catalog';
+import { getHome, getCategories, getProducts, getProductDetail } from './catalog';
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn());
@@ -50,6 +50,21 @@ describe('catalog API client', () => {
       'http://localhost:3000/api/catalog/products?busca=pizza&page=2&pageSize=10',
       expect.anything(),
     );
+  });
+
+  it('getProductDetail fetches product by id', async () => {
+    const mockProduto = { id: 7, nome: 'Pizza' };
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => mockProduto,
+    });
+
+    const result = await getProductDetail(7);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/api/catalog/products/7',
+      expect.anything(),
+    );
+    expect(result).toEqual(mockProduto);
   });
 
   it('throws on non-ok response', async () => {

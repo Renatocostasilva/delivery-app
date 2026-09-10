@@ -1,6 +1,9 @@
 import { NavLink } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
 
 export function BottomNav() {
+  const { totalQuantidade } = useCart();
+
   return (
     <nav className="bottom-nav">
       <NavLink to="/" end className={({ isActive }) => `bottom-nav__item${isActive ? ' bottom-nav__item--active' : ''}`}>
@@ -25,6 +28,19 @@ export function BottomNav() {
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
         <span>Buscar</span>
+      </NavLink>
+      <NavLink to="/carrinho" className={({ isActive }) => `bottom-nav__item${isActive ? ' bottom-nav__item--active' : ''}`}>
+        <span className="bottom-nav__icon-wrap">
+          <svg className="bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="9" cy="21" r="1" />
+            <circle cx="20" cy="21" r="1" />
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+          </svg>
+          {totalQuantidade > 0 && (
+            <span className="bottom-nav__badge">{totalQuantidade}</span>
+          )}
+        </span>
+        <span>Carrinho</span>
       </NavLink>
     </nav>
   );
