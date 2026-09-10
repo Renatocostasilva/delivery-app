@@ -1,0 +1,1 @@
+// categories domain — placeholder
