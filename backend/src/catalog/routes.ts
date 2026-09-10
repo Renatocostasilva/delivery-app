@@ -7,7 +7,7 @@ import {
   getHome,
 } from "./service.js";
 
-export const catalogRouter = Router();
+export const catalogRouter: Router = Router();
 
 catalogRouter.get("/categories", async (_req, res, next) => {
   try {

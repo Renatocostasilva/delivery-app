@@ -44,3 +44,48 @@ export interface HomeData {
   maisVendidos: ProdutoCard[];
   promocoes: ProdutoCard[];
 }
+
+export interface Variacao {
+  id: number;
+  nome: string;
+  precoAdicional: string;
+  ativo: boolean;
+  ordem: number;
+}
+
+export interface Adicional {
+  id: number;
+  nome: string;
+  precoAdicional: string;
+  obrigatorio: boolean;
+  quantidadeMinima: number;
+  quantidadeMaxima: number;
+  ativo: boolean;
+  ordem: number;
+}
+
+export interface ProdutoDetalhe {
+  id: number;
+  nome: string;
+  sku: string;
+  subcategoria: string | null;
+  descricaoCurta: string | null;
+  descricaoCompleta: string | null;
+  ingredientes: string | null;
+  observacoesInfo: string | null;
+  disponivel: boolean;
+  emDestaque: boolean;
+  maisVendido: boolean;
+  precoVenda: string;
+  precoPromocional: string | null;
+  emPromocao: boolean;
+  emPromocional?: boolean;
+  controlarEstoque: boolean;
+  estoqueAtual: number;
+  estoqueMinimo: number;
+  pesoVolume: string | null;
+  categoria: { id: number; nome: string; slug: string };
+  imagens: ImagemProduto[];
+  variacoes: Variacao[];
+  adicionais: Adicional[];
+}

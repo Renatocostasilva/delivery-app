@@ -1,4 +1,4 @@
-import type { Categoria, HomeData, PaginaProdutos } from './types';
+import type { Categoria, HomeData, PaginaProdutos, ProdutoDetalhe } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -19,6 +19,10 @@ export function getHome(): Promise<HomeData> {
 
 export function getCategories(): Promise<Categoria[]> {
   return fetchJSON<Categoria[]>('/api/catalog/categories');
+}
+
+export function getProductDetail(idOrSlug: number | string): Promise<ProdutoDetalhe> {
+  return fetchJSON<ProdutoDetalhe>(`/api/catalog/products/${idOrSlug}`);
 }
 
 interface ProductsParams {

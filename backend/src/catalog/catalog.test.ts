@@ -8,7 +8,7 @@ let catBolos: { id: number; slug: string };
 let catDoces: { id: number; slug: string };
 let catInativa: { id: number };
 let produtoDestaque: { id: number; sku: string };
-let produtoInativo: { id: number };
+let produtoInativo: { id: number; sku: string };
 
 beforeAll(async () => {
   await resetDatabase();
@@ -228,11 +228,8 @@ describe("GET /api/catalog/products", () => {
 
   it("não retorna produtos inativos", async () => {
     const res = await request(app).get("/api/catalog/products");
-    expect(
-      res.body.data.some(
-        (p: { sku: string }) => p.sku === produtoInativo.sku,
-      ),
-    ).toBe(false);
+    const data = res.body.data as Array<{ sku: string }>;
+    expect(data.some((p) => p.sku === produtoInativo.sku)).toBe(false);
   });
 });
 

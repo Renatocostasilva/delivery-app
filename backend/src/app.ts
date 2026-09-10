@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import type { Express } from "express";
 import { authRouter } from "./admin/auth.routes.js";
 import { catalogRouter } from "./catalog/routes.js";
@@ -9,6 +10,7 @@ import { apiNotFound, errorHandler } from "./lib/http.js";
 export const app: Express = express();
 
 app.use(express.json());
+app.use(cors({ origin: true }));
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

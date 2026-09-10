@@ -1,10 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { ProdutoCard as ProdutoCardType } from '../api/types';
-
-function formatBRL(value: string): string {
-  const num = parseFloat(value);
-  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
+import { formatBRL } from '../lib/format';
 
 interface ProductCardProps {
   produto: ProdutoCardType;
