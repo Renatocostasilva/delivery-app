@@ -1,0 +1,253 @@
+// Delivery App — modelo de dados (REN-7)
+//
+// Banco local de desenvolvimento: SQLite (DATABASE_URL="file:./dev.db").
+// Schema dimensionado com tipos portáveis (Decimal, Json, DateTime sem
+// truques de banco) para facilitar migração futura para PostgreSQL/MySQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum StatusPedido {
+  RECEBIDO
+  AGUARDANDO_PAGAMENTO
+  PAGAMENTO_APROVADO
+  EM_PREPARACAO
+  PRONTO
+  SAIU_PARA_ENTREGA
+  ENTREGUE
+  CANCELADO
+  RECUSADO
+  FALHA_PAGAMENTO
+  ESTORNADO
+}
+
+enum EstadoPagamento {
+  INICIADO
+  PENDENTE
+  APROVADO
+  RECUSADO
+  CANCELADO
+  EXPIRADO
+  ESTORNADO
+}
+
+enum TipoEntrega {
+  RETIRADA
+  ENTREGA
+}
+
+/// Categoria de produtos (ex.: Bolos, Doces, Salgados).
+model Categoria {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  slug      String   @unique
+  ordem     Int      @default(0)
+  ativa     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  produtos Produto[]
+
+  @@index([ordem])
+}
+
+/// Produto do catálogo. Campos administrativos de auditoria básica.
+model Produto {
+  id                 Int      @id @default(autoincrement())
+  nome               String
+  sku                String   @unique
+  categoriaId        Int
+  subcategoria       String?
+  descricaoCurta     String?
+  descricaoCompleta  String?
+  ativo              Boolean  @default(true)
+  emDestaque         Boolean  @default(false)
+  maisVendido        Boolean  @default(false)
+  ordemExibicao      Int      @default(0)
+  disponivel         Boolean  @default(true)
+  controlarEstoque   Boolean  @default(false)
+  vendaSemEstoque    Boolean  @default(true)
+  pesoVolume         Decimal?
+  ingredientes       String?
+  observacoesInfo    String?
+  precoVenda         Decimal
+  precoPromocional   Decimal?
+  custo              Decimal?
+  margem             Decimal?
+  dataInicioPromocao DateTime?
+  dataFimPromocao    DateTime?
+  estoqueAtual       Int      @default(0)
+  estoqueMinimo      Int      @default(0)
+  avisoEstoqueBaixo  Boolean  @default(false)
+  createdBy          String?
+  updatedBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  categoria  Categoria      @relation(fields: [categoriaId], references: [id])
+  imagens    ProdutoImagem[]
+  variacoes  Variacao[]
+  adicionais Adicional[]
+
+  @@index([categoriaId])
+  @@index([ativo])
+}
+
+/// Imagem de um produto (uma pode ser marcada como principal).
+model ProdutoImagem {
+  id        Int      @id @default(autoincrement())
+  produtoId Int
+  url       String
+  ordem     Int      @default(0)
+  principal Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([produtoId])
+}
+
+/// Variação de produto (ex.: Bolo pequeno/médio/grande).
+model Variacao {
+  id            Int     @id @default(autoincrement())
+  produtoId     Int
+  nome          String
+  precoAdicional Decimal @default(0)
+  ativo         Boolean @default(true)
+  ordem         Int     @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([produtoId])
+}
+
+/// Adicional de produto (ex.: Chocolate +5, Morango +7, Nutella +8).
+model Adicional {
+  id               Int     @id @default(autoincrement())
+  produtoId        Int
+  nome             String
+  precoAdicional   Decimal @default(0)
+  obrigatorio      Boolean @default(false)
+  quantidadeMinima Int     @default(0)
+  quantidadeMaxima Int     @default(1)
+  ativo            Boolean @default(true)
+  ordem            Int     @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([produtoId])
+}
+
+/// Cliente do delivery.
+/// `telefone` único, normalizado em E.164: +55DDDNUMERO (ex.: +5511999998888).
+model Cliente {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  telefone  String   @unique
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enderecos Endereco[]
+  pedidos   Pedido[]
+}
+
+/// Endereço de entrega do cliente.
+model Endereco {
+  id          Int      @id @default(autoincrement())
+  clienteId   Int
+  logradouro  String
+  numero      String
+  complemento String?
+  bairro      String
+  cidade      String
+  cep         String
+  referencia  String?
+  principal   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+}
+
+/// Pedido realizado. `enderecoSnapshot` guarda o endereço no momento do
+/// pedido (imutável, mesmo que o cliente edite o cadastro depois).
+model Pedido {
+  id               Int            @id @default(autoincrement())
+  numeroPedido     String         @unique
+  clienteId        Int
+  statusPedido     StatusPedido   @default(RECEBIDO)
+  statusPagamento  EstadoPagamento @default(PENDENTE)
+  tipoEntrega      TipoEntrega
+  enderecoSnapshot Json?
+  taxasEntrega     Decimal        @default(0)
+  desconto         Decimal        @default(0)
+  totalProdutos    Decimal        @default(0)
+  total            Decimal
+  formaPagamento   String?
+  observacoes      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  cliente    Cliente       @relation(fields: [clienteId], references: [id])
+  itens      ItemPedido[]
+  pagamentos Pagamento[]
+
+  @@index([clienteId])
+  @@index([statusPedido])
+}
+
+/// Item do pedido. Nomes e preços são snapshots no momento da compra;
+/// `produtoId` é apenas referência (sem FK) para preservar o histórico
+/// mesmo se o produto for removido do catálogo depois.
+model ItemPedido {
+  id                       Int      @id @default(autoincrement())
+  pedidoId                 Int
+  produtoId                Int
+  produtoNome              String
+  variacaoNome             String?
+  quantidade               Int
+  precoUnitario            Decimal
+  precoPromocionalUnitario Decimal?
+  adicionais               Json? // snapshot [{ nome, preco }]
+  observacoes              String?
+  total                    Decimal
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id])
+
+  @@index([pedidoId])
+}
+
+/// Pagamento associado a um pedido. `idempotencyKey` garante que a
+/// integração com o gateway (ex.: stone) não duplique cobranças.
+model Pagamento {
+  id              Int            @id @default(autoincrement())
+  pedidoId        Int
+  gateway         String         @default("stone")
+  valor           Decimal
+  meioPagamento   String?
+  estadoPagamento EstadoPagamento @default(INICIADO)
+  idempotencyKey  String         @unique
+  dadosGateway    Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id])
+
+  @@index([pedidoId])
+}
