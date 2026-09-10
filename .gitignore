@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Env files (contain secrets — never commit)
+.env
+.env.*
+!.env.example
+
+# PWA build artifacts
+dev-dist/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# Vite / TS build info
+*.tsbuildinfo

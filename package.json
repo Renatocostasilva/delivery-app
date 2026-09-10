@@ -1,0 +1,12 @@
+{
+  "name": "delivery-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "pnpm --filter @delivery/backend dev",
+    "dev:frontend": "pnpm --filter @delivery/frontend dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  }
+}
