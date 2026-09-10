@@ -1,5 +1,9 @@
 import express from "express";
 import type { Express } from "express";
+import { authRouter } from "./admin/auth.routes.js";
+import { categoriesAdminRouter } from "./categories/index.js";
+import { productsAdminRouter } from "./products/index.js";
+import { apiNotFound, errorHandler } from "./lib/http.js";
 
 export const app: Express = express();
 
@@ -8,3 +12,10 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
+
+app.use("/api/admin/auth", authRouter);
+app.use("/api/admin/categories", categoriesAdminRouter);
+app.use("/api/admin/products", productsAdminRouter);
+
+app.use(apiNotFound);
+app.use(errorHandler);

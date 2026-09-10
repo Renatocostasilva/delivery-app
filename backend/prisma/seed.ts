@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -124,8 +125,26 @@ const produtos: ProdutoSeed[] = [
   },
 ];
 
+async function seedAdmin() {
+  if (process.env.NODE_ENV === "production") {
+    console.log("Seed de admin ignorado em produção.");
+    return;
+  }
+  const email = "admin@delivery.local";
+  const senha = process.env.ADMIN_SEED_PASSWORD ?? "admin123";
+  const senhaHash = await hash(senha, 10);
+  await prisma.adminUser.upsert({
+    where: { email },
+    update: { senhaHash, nome: "Administrador", ativo: true },
+    create: { email, senhaHash, nome: "Administrador", ativo: true },
+  });
+  console.log(`Admin padrão pronto: ${email}`);
+}
+
 async function main() {
   console.log("Iniciando seed...");
+
+  await seedAdmin();
 
   for (const categoria of categorias) {
     const { id } = await prisma.categoria.upsert({
@@ -192,16 +211,17 @@ async function main() {
     console.log(`Produto pronto: ${criado.nome} (${criado.id})`);
   }
 
-  const [totalCategorias, totalProdutos, totalVariacoes, totalAdicionais] =
+  const [totalCategorias, totalProdutos, totalVariacoes, totalAdicionais, totalAdmins] =
     await Promise.all([
       prisma.categoria.count(),
       prisma.produto.count(),
       prisma.variacao.count(),
       prisma.adicional.count(),
+      prisma.adminUser.count(),
     ]);
 
   console.log(
-    `Seed concluído: ${totalCategorias} categorias, ${totalProdutos} produtos, ${totalVariacoes} variações, ${totalAdicionais} adicionais.`,
+    `Seed concluído: ${totalCategorias} categorias, ${totalProdutos} produtos, ${totalVariacoes} variações, ${totalAdicionais} adicionais, ${totalAdmins} admins.`,
   );
 }
 
