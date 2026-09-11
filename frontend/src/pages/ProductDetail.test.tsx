@@ -122,7 +122,7 @@ describe('ProductDetail', () => {
     await screen.findByText('Pizza Margherita');
     fireEvent.click(screen.getByRole('button', { name: /Adicionar/ }));
 
-    expect(await screen.findByText('Finalizar pedido — em breve')).toBeTruthy();
+    expect(await screen.findByText('Finalizar pedido')).toBeTruthy();
     expect(screen.getByText('Pizza Margherita')).toBeTruthy();
     expect(screen.getAllByText('R$ 49,90').length).toBeGreaterThan(0);
   });
@@ -175,7 +175,7 @@ describe('ProductDetail', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Adicionar/ }));
 
-    expect(await screen.findByText('Finalizar pedido — em breve')).toBeTruthy();
+    expect(await screen.findByText('Finalizar pedido')).toBeTruthy();
     expect(screen.getByText(/Sem muçarela/)).toBeTruthy();
   });
 
