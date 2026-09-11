@@ -61,6 +61,22 @@ export type StatusGatewayInfo = {
   atualizadoEm?: Date | null;
 };
 
+/** Entrada para estorno (refund) de um pagamento no gateway. */
+export type EstornarPagamentoInput = {
+  idGateway: string;
+  valor: number;
+  idempotencyKey: string;
+};
+
+/** Resultado do estorno no gateway (fonte da verdade é o gateway). */
+export type EstornoRealizado = {
+  idGateway: string;
+  status: StatusGateway;
+  meioPagamento?: string | null;
+  detalhes?: string | null;
+  dadosGateway?: unknown;
+};
+
 /** Payload bruto de notificação recebido via HTTP (webhook). */
 export type NotificacaoHttp = {
   body: unknown;
@@ -75,6 +91,13 @@ export interface GatewayPagamento {
   criarCobrancaPix(input: CriarCobrancaPixInput): Promise<CobrancaCriada>;
   criarCobrancaCartao(input: CriarCobrancaCartaoInput): Promise<CobrancaCriada>;
   consultarStatus(idGateway: string): Promise<StatusGatewayInfo>;
+  /**
+   * Estorna um pagamento aprovado no provedor. Só deve retornar status
+   * "ESTORNADO" quando o provedor confirmar o refund; caso contrário retorna
+   * o estado atual real do pagamento (ex.: APROVADO quando o estorno foi
+   * rejeitado). Lança GatewayError em falha de comunicação/timeout.
+   */
+  estornar(input: EstornarPagamentoInput): Promise<EstornoRealizado>;
   /**
    * Interpreta uma notificação HTTP do provedor: valida assinatura (quando
    * configurada) e extrai o id do pagamento. Retorna null se não reconhecida.

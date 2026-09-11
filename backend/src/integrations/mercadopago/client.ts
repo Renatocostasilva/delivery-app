@@ -14,6 +14,7 @@ import {
   type MercadoPagoErrorBody,
   type MercadoPagoPayment,
   type MercadoPagoPaymentRequest,
+  type MercadoPagoRefund,
 } from "./types.js";
 
 export type MercadoPagoClientConfig = {
@@ -55,10 +56,28 @@ export class MercadoPagoClient {
     return this.#request(`/v1/payments/${id}`);
   }
 
-  async #request(
+  /**
+   * POST /v1/payments/:id/refunds — estorna (total) um pagamento aprovado.
+   * Idempotente via `X-Idempotency-Key`. A resposta é a transação de refund;
+   * a confirmação real é o status do pagamento (consultado depois).
+   */
+  async estornarPagamento(
+    idGateway: string,
+    amount: number,
+    idempotencyKey: string,
+  ): Promise<MercadoPagoRefund> {
+    const id = encodeURIComponent(idGateway);
+    return this.#request(`/v1/payments/${id}/refunds`, {
+      method: "POST",
+      headers: { "X-Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ amount }),
+    });
+  }
+
+  async #request<T>(
     path: string,
     init?: { method?: string; headers?: Record<string, string>; body?: string },
-  ): Promise<MercadoPagoPayment> {
+  ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -90,9 +109,9 @@ export class MercadoPagoClient {
     }
 
     type ApiErrorFields = Partial<Omit<MercadoPagoErrorBody, "status">>;
-    const body: (MercadoPagoPayment & ApiErrorFields) | null =
+    const body: (T & ApiErrorFields) | null =
       (await res.json().catch(() => null)) as unknown as
-        | (MercadoPagoPayment & ApiErrorFields)
+        | (T & ApiErrorFields)
         | null;
 
     if (!res.ok) {
@@ -102,6 +121,6 @@ export class MercadoPagoClient {
       throw new GatewayError(mensagem, res.status >= 500, res.status);
     }
 
-    return (body ?? {}) as MercadoPagoPayment;
+    return (body ?? {}) as T;
   }
 }

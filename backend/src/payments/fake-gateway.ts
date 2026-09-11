@@ -9,6 +9,8 @@ import type {
   CobrancaCriada,
   CriarCobrancaCartaoInput,
   CriarCobrancaPixInput,
+  EstornarPagamentoInput,
+  EstornoRealizado,
   GatewayPagamento,
   NotificacaoHttp,
   StatusGateway,
@@ -26,6 +28,10 @@ export type FakeGatewayConfig = {
   criarCartaoErro?: Error;
   /** Se definido, consultarStatus lança este erro. */
   consultarStatusErro?: Error;
+  /** Status retornado pelo estorno (default: "ESTORNADO"). */
+  estornarStatus?: StatusGateway;
+  /** Se definido, estornar lança este erro. */
+  estornarErro?: Error;
   /** Status a ser retornado ao consultar um idGateway específico. */
   statusPorId?: Map<string, StatusGateway>;
   /** Se true, a assinatura do webhook é validada (usando webhookSecret). */
@@ -86,6 +92,22 @@ export class FakeGateway implements GatewayPagamento {
       meioPagamento: "pix",
       detalhes: null,
       atualizadoEm: new Date(),
+    };
+  }
+
+  async estornar(input: EstornarPagamentoInput): Promise<EstornoRealizado> {
+    if (this.config.estornarErro) throw this.config.estornarErro;
+    const status = this.config.estornarStatus ?? "ESTORNADO";
+    return {
+      idGateway: input.idGateway,
+      status,
+      meioPagamento: "pix",
+      detalhes: status === "ESTORNADO" ? "refunded" : null,
+      dadosGateway: {
+        payment_id: input.idGateway,
+        amount: input.valor,
+        refund: { id: this.gerarId(), payment_id: input.idGateway, amount: input.valor },
+      },
     };
   }
 

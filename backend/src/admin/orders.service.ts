@@ -1,6 +1,8 @@
 import { Prisma, type StatusPedido } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http.js";
+import { type EstornoRealizado, type GatewayError, getGateway } from "../payments/gateway.js";
+import { registrarFalhaGateway } from "../payments/service.js";
 
 // ─── Máquina de estados do pedido (REN-14) ────────────────────────────────────
 //
@@ -192,32 +194,75 @@ export async function cancelarPedido(
 
 // ─── Estornar pedido ────────────────────────────────────────────────────────
 
+/**
+ * Estorna um pedido com pagamento aprovado. Só marca ESTORNADO no banco após
+ * confirmação REAL do gateway (refund). Em falha de comunicação/timeout,
+ * NÃO marca estornado: registra `ultimoErroGateway` e lança 502/503.
+ */
 export async function estornarPedido(
   pedidoId: number,
   adminId: number,
   motivo: string,
 ) {
-  return prisma.$transaction(async (tx) => {
-    const pedido = await tx.pedido.findUnique({
-      where: { id: pedidoId },
-      include: { pagamentos: { orderBy: { id: "desc" } } },
-    });
-    if (!pedido) throw new HttpError(404, "Pedido não encontrado.");
+  const pedido = await prisma.pedido.findUnique({
+    where: { id: pedidoId },
+    include: { pagamentos: { orderBy: { id: "desc" } } },
+  });
+  if (!pedido) throw new HttpError(404, "Pedido não encontrado.");
 
-    if (pedido.statusPagamento !== "APROVADO") {
+  if (pedido.statusPagamento !== "APROVADO") {
+    throw new HttpError(
+      409,
+      "Só é possível estornar pedidos com pagamento aprovado.",
+    );
+  }
+
+  const pagamento = pedido.pagamentos[0];
+  if (!pagamento?.idGateway) {
+    throw new HttpError(
+      409,
+      "Pedido sem pagamento registrado no gateway. Não é possível estornar.",
+    );
+  }
+
+  let resultado: EstornoRealizado;
+  try {
+    const gateway = getGateway();
+    resultado = await gateway.estornar({
+      idGateway: pagamento.idGateway,
+      valor: Number(pagamento.valor),
+      idempotencyKey: pagamento.idempotencyKey,
+    });
+  } catch (err) {
+    await registrarFalhaGateway(pagamento.id, err);
+    if (isGatewayError(err)) {
       throw new HttpError(
-        409,
-        "Só é possível estornar pedidos com pagamento aprovado.",
+        err.statusCode === 503 || err.retriable ? 503 : 502,
+        `Falha no gateway de pagamento: ${err.message}`,
       );
     }
+    throw err;
+  }
 
-    const pagamento = pedido.pagamentos[0];
-    if (pagamento) {
-      await tx.pagamento.update({
-        where: { id: pagamento.id },
-        data: { estadoPagamento: "ESTORNADO" },
-      });
-    }
+  if (resultado.status !== "ESTORNADO") {
+    throw new HttpError(
+      409,
+      `Estorno não confirmado pelo gateway. Estado atual do pagamento: ${resultado.status}.`,
+    );
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.pagamento.update({
+      where: { id: pagamento.id },
+      data: {
+        estadoPagamento: "ESTORNADO",
+        sincronizadoEm: new Date(),
+        ultimoErroGateway: null,
+        dadosGateway: (resultado.dadosGateway ?? undefined) as
+          | Prisma.InputJsonValue
+          | undefined,
+      },
+    });
 
     await tx.pedido.update({
       where: { id: pedidoId },
@@ -247,6 +292,15 @@ export async function estornarPedido(
       },
     });
   });
+}
+
+function isGatewayError(err: unknown): err is GatewayError {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "retriable" in err &&
+    typeof (err as { retriable?: unknown }).retriable === "boolean"
+  );
 }
 
 // ─── Reimprimir pedido ──────────────────────────────────────────────────────

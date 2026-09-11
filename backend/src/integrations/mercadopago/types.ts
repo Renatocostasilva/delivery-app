@@ -60,6 +60,19 @@ export type MercadoPagoPaymentRequest = {
   date_of_expiration?: string;
 };
 
+/**
+ * Resposta de POST /v1/payments/:id/refunds. A API de refund (Checkout)
+ * não devolve campo `status` — a confirmação real vem do status do
+ * pagamento (GET /v1/payments/:id), que passa a `refunded`/`charged_back`.
+ */
+export type MercadoPagoRefund = {
+  id: number | string;
+  payment_id: number | string;
+  amount?: number;
+  metadata?: unknown;
+  source?: unknown;
+};
+
 export type MercadoPagoErrorBody = {
   message?: string | string[];
   error?: string;

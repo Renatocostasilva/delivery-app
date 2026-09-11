@@ -208,7 +208,8 @@ export async function aplicarEstadoGateway(
 
 const SUCESSO_TERMINAL: EstadoPagamento[] = ["APROVADO", "ESTORNADO"];
 
-async function registrarFalhaGateway(pagamentoId: number, err: unknown) {
+/** Registra a última falha do gateway no Pagamento (tentativas + mensagem). */
+export async function registrarFalhaGateway(pagamentoId: number, err: unknown) {
   await prisma.pagamento.update({
     where: { id: pagamentoId },
     data: {
