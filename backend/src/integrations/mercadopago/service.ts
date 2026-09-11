@@ -10,9 +10,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { HttpError } from "../../lib/http.js";
 import {
+  GatewayError,
   type CobrancaCriada,
   type CriarCobrancaCartaoInput,
   type CriarCobrancaPixInput,
+  type EstornarPagamentoInput,
+  type EstornoRealizado,
   type GatewayPagamento,
   type NotificacaoHttp,
   type StatusGateway,
@@ -153,6 +156,38 @@ export class MercadoPagoGateway implements GatewayPagamento {
       detalhes: detalhesStatus(p),
       atualizadoEm:
         dataValida(p.date_approved, p.date_of_expiration) ?? new Date(),
+    };
+  }
+
+  /**
+   * Estorno real via POST /v1/payments/:id/refunds (refund total). A resposta
+   * do refund não traz `status`: a confirmação vem do STATUS da cobrança
+   * (GET /v1/payments/:id) — que vira `refunded`/`charged_back` → ESTORNADO.
+   * - Timeout/falha de rede (retriable) → propaga (o chamador registra erro).
+   * - Erro 4xx no refund (ex.: já estornado, status inválido) → consulta o
+   *   status real do pagamento e devolve o estado verdadeiro.
+   */
+  async estornar(input: EstornarPagamentoInput): Promise<EstornoRealizado> {
+    try {
+      await this.config.client.estornarPagamento(
+        input.idGateway,
+        input.valor,
+        input.idempotencyKey,
+      );
+    } catch (err) {
+      if (err instanceof GatewayError && err.retriable) {
+        throw err;
+      }
+      // 4xx: sem confirmação de refund via POST — decide pelo status real.
+    }
+
+    const p = await this.config.client.consultarPagamento(input.idGateway);
+    return {
+      idGateway: String(p.id),
+      status: statusGatewayMercadoPago(p.status),
+      meioPagamento: p.payment_method_id ?? null,
+      detalhes: detalhesStatus(p),
+      dadosGateway: p,
     };
   }
 

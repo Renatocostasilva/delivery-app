@@ -1,9 +1,11 @@
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, afterAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../app.js";
 import { prisma } from "../lib/prisma.js";
 import { resetDatabase } from "../lib/test-utils.js";
 import { hashPassword } from "./password.js";
+import { setGateway, clearGateway, GatewayError } from "../payments/gateway.js";
+import { FakeGateway } from "../payments/fake-gateway.js";
 
 const ADMIN_EMAIL = "admin@delivery.local";
 const ADMIN_SENHA = "admin123";
@@ -12,9 +14,12 @@ let token: string;
 let clienteId: number;
 let pedidoId: number;
 let pedidoNumero: string;
+let fake: FakeGateway;
 
 beforeAll(async () => {
   await resetDatabase();
+  fake = new FakeGateway();
+  setGateway(fake);
 
   await prisma.adminUser.create({
     data: {
@@ -76,10 +81,16 @@ beforeAll(async () => {
       pedidoId,
       gateway: "fake",
       valor: 25.5,
+      meioPagamento: "pix",
       estadoPagamento: "PENDENTE",
       idempotencyKey: "test-key-001",
+      idGateway: "20001",
     },
   });
+});
+
+afterAll(async () => {
+  clearGateway();
 });
 
 beforeEach(async () => {
@@ -290,12 +301,18 @@ describe("POST /api/admin/orders/:id/refund", () => {
     });
     await prisma.pagamento.updateMany({
       where: { pedidoId },
-      data: { estadoPagamento: "APROVADO" },
+      data: {
+        estadoPagamento: "APROVADO",
+        ultimoErroGateway: null,
+        tentativas: 0,
+        idGateway: "20001",
+      },
     });
     await prisma.statusHistorico.deleteMany({ where: { pedidoId } });
+    fake.updateConfig({ estornarStatus: "ESTORNADO", estornarErro: undefined });
   });
 
-  it("estorna pedido com pagamento aprovado", async () => {
+  it("estorna pedido com pagamento aprovado via gateway", async () => {
     const res = await request(app)
       .post(`/api/admin/orders/${pedidoId}/refund`)
       .set("Authorization", `Bearer ${token}`)
@@ -303,6 +320,21 @@ describe("POST /api/admin/orders/:id/refund", () => {
     expect(res.status).toBe(200);
     expect(res.body.statusPedido).toBe("ESTORNADO");
     expect(res.body.statusPagamento).toBe("ESTORNADO");
+
+    // Confirma a persistência no banco
+    const pagamento = await prisma.pagamento.findFirstOrThrow({
+      where: { pedidoId },
+    });
+    expect(pagamento.estadoPagamento).toBe("ESTORNADO");
+    expect(pagamento.sincronizadoEm).toBeTruthy();
+    expect(pagamento.ultimoErroGateway).toBeNull();
+    expect(pagamento.dadosGateway).toBeTruthy();
+
+    const historico = await prisma.statusHistorico.findMany({
+      where: { pedidoId },
+    });
+    expect(historico).toHaveLength(1);
+    expect(historico[0].para).toBe("ESTORNADO");
   });
 
   it("não estorna pedido sem pagamento aprovado", async () => {
@@ -319,6 +351,71 @@ describe("POST /api/admin/orders/:id/refund", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ motivo: "Teste" });
     expect(res.status).toBe(409);
+  });
+
+  it("não estorna pedido sem idGateway no pagamento", async () => {
+    await prisma.pagamento.updateMany({
+      where: { pedidoId },
+      data: { idGateway: null },
+    });
+    const res = await request(app)
+      .post(`/api/admin/orders/${pedidoId}/refund`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ motivo: "Teste" });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("gateway");
+  });
+
+  it("retorna 503 quando não há gateway configurado", async () => {
+    clearGateway();
+    const res = await request(app)
+      .post(`/api/admin/orders/${pedidoId}/refund`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ motivo: "Teste" });
+    expect(res.status).toBe(503);
+
+    setGateway(fake);
+    // Não marca estornado
+    const pedido = await prisma.pedido.findUniqueOrThrow({ where: { id: pedidoId } });
+    expect(pedido.statusPagamento).toBe("APROVADO");
+  });
+
+  it("erro do gateway (timeout) não marca estornado e registra a falha", async () => {
+    fake.updateConfig({ estornarErro: new GatewayError("Timeout ao chamar o MercadoPago.", true) });
+    const res = await request(app)
+      .post(`/api/admin/orders/${pedidoId}/refund`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ motivo: "Teste" });
+    expect(res.status).toBe(503);
+
+    const pagamento = await prisma.pagamento.findFirstOrThrow({
+      where: { pedidoId },
+    });
+    expect(pagamento.estadoPagamento).toBe("APROVADO");
+    expect(pagamento.ultimoErroGateway).toContain("Timeout");
+    expect(pagamento.tentativas).toBe(1);
+
+    const pedido = await prisma.pedido.findUniqueOrThrow({ where: { id: pedidoId } });
+    expect(pedido.statusPagamento).toBe("APROVADO");
+    expect(pedido.statusPedido).toBe("PAGAMENTO_APROVADO");
+  });
+
+  it("gateway devolvendo status não-ESTORNADO retorna 409 sem marcar estornado", async () => {
+    fake.updateConfig({ estornarStatus: "APROVADO" });
+    const res = await request(app)
+      .post(`/api/admin/orders/${pedidoId}/refund`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ motivo: "Teste" });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("Estado atual do pagamento");
+
+    const pagamento = await prisma.pagamento.findFirstOrThrow({
+      where: { pedidoId },
+    });
+    expect(pagamento.estadoPagamento).toBe("APROVADO");
+
+    const pedido = await prisma.pedido.findUniqueOrThrow({ where: { id: pedidoId } });
+    expect(pedido.statusPagamento).toBe("APROVADO");
   });
 });
 
