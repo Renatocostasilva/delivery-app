@@ -62,7 +62,9 @@ describe('CartPage', () => {
     expect(screen.getByText('Obs: Sem açúcar')).toBeTruthy();
     expect(screen.getByText('Subtotal')).toBeTruthy();
     expect(screen.getAllByText('R$ 119,90').length).toBeGreaterThan(0);
-    expect(screen.getByText('Finalizar pedido — em breve')).toBeTruthy();
+    expect(screen.getByText('Finalizar pedido').closest('a')?.getAttribute('href')).toBe(
+      '/checkout',
+    );
   });
 
   it('increments quantity and updates totals', () => {

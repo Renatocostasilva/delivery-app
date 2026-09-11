@@ -116,11 +116,11 @@ export function CartPage() {
           <span>Subtotal</span>
           <span>{formatBRL(subtotal)}</span>
         </div>
-        <button type="button" className="cart__checkout" disabled title="Em breve">
-          Finalizar pedido — em breve
-        </button>
+        <Link to="/checkout" className="cart__checkout">
+          Finalizar pedido
+        </Link>
         <p className="cart__note">
-          Pagamento e entrega serão definidos no checkout (em desenvolvimento).
+          Você poderá escolher entre retirada no balcão ou entrega durante o checkout.
         </p>
       </div>
     </div>
