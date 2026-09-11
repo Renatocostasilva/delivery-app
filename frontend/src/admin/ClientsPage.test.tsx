@@ -188,4 +188,30 @@ describe('ClientsPage', () => {
     });
     expect(patched()?.enderecos).toEqual([{ id: 1, remover: true }]);
   });
+
+  it('reativa cliente inativo via botão Reativar', async () => {
+    seedSession();
+    const inativo = { ...clientesFixture.data[0], id: 2, ativo: false };
+    const fixtureInativo = { ...clientesFixture, data: [inativo], total: 1 };
+    let body: { ativo?: boolean } | null = null;
+    const patched = () => body;
+    mockFetchHandler((url, init) => {
+      if (init?.method === 'PATCH' && url.includes('/api/admin/clients/')) {
+        body = init.body ? JSON.parse(init.body as string) : null;
+        return ok(inativo);
+      }
+      if (url.includes('/api/admin/clients')) return ok(fixtureInativo);
+      return ok({});
+    });
+    renderAdmin('/admin/clientes');
+    await waitFor(() => {
+      expect(screen.getByText('Ana Souza')).toBeTruthy();
+    });
+    expect(screen.getByText('Inativo')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Reativar' }));
+    await waitFor(() => {
+      expect(patched()).not.toBeNull();
+    });
+    expect(patched()?.ativo).toBe(true);
+  });
 });

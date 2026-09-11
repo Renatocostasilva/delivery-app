@@ -236,6 +236,15 @@ export function ClientsPage() {
     }
   }
 
+  async function handleReativar(id: number) {
+    try {
+      await updateClient(id, { ativo: true });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao reativar cliente');
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -595,30 +604,40 @@ export function ClientsPage() {
                         >
                           Editar
                         </button>
-                        {confirmId === c.id ? (
-                          <>
+                        {c.ativo ? (
+                          confirmId === c.id ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn--small btn--danger"
+                                onClick={() => void handleInativar(c.id)}
+                              >
+                                Confirmar?
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn--small btn--ghost"
+                                onClick={() => setConfirmId(null)}
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
                             <button
                               type="button"
                               className="btn btn--small btn--danger"
-                              onClick={() => void handleInativar(c.id)}
+                              onClick={() => setConfirmId(c.id)}
                             >
-                              Confirmar?
+                              Inativar
                             </button>
-                            <button
-                              type="button"
-                              className="btn btn--small btn--ghost"
-                              onClick={() => setConfirmId(null)}
-                            >
-                              Cancelar
-                            </button>
-                          </>
+                          )
                         ) : (
                           <button
                             type="button"
-                            className="btn btn--small btn--danger"
-                            onClick={() => setConfirmId(c.id)}
+                            className="btn btn--small"
+                            onClick={() => void handleReativar(c.id)}
                           >
-                            Inativar
+                            Reativar
                           </button>
                         )}
                       </td>
