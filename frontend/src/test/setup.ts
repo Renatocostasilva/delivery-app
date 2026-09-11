@@ -2,6 +2,7 @@
 // Algumas combinações de vitest 3.x + jsdom não expõem localStorage com
 // clear/getItem/setItem/removeItem/key/length como funções utilizáveis.
 // Este mock em memória garante comportamento real e homogêneo em todos os testes.
+import '@testing-library/jest-dom/vitest';
 class MemoryStorage implements Storage {
   private store = new Map<string, string>();
 
