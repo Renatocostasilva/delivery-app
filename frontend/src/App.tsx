@@ -14,6 +14,7 @@ import { DeliveryStep } from './pages/checkout/DeliveryStep';
 import { SummaryStep } from './pages/checkout/SummaryStep';
 import { PaymentPage } from './pages/checkout/PaymentPage';
 import { PedidoPage } from './pages/checkout/PedidoPage';
+import { AdminApp } from './admin/AdminApp';
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="/pedido/:id" element={<PedidoPage />} />
                 <Route path="/:categoria/:slug" element={<CategoryListing />} />
                 <Route path="/produto/:id" element={<ProductDetail />} />
+                <Route path="/admin/*" element={<AdminApp />} />
               </Routes>
             </main>
             <BottomNav />
