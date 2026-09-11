@@ -247,22 +247,31 @@ model ItemPedido {
 }
 
 /// Pagamento associado a um pedido. `idempotencyKey` garante que a
-/// integração com o gateway (ex.: stone) não duplique cobranças.
+/// integração com o gateway não duplique cobranças (REN-13: Mercado Pago).
+/// `idGateway` guarda o id do pagamento no provedor (ex.: /v1/payments/:id).
 model Pagamento {
-  id              Int            @id @default(autoincrement())
-  pedidoId        Int
-  gateway         String         @default("stone")
-  valor           Decimal
-  meioPagamento   String?
-  estadoPagamento EstadoPagamento @default(INICIADO)
-  idempotencyKey  String         @unique
-  dadosGateway    Json?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                 Int             @id @default(autoincrement())
+  pedidoId           Int
+  gateway            String          @default("mercadopago")
+  valor              Decimal
+  meioPagamento      String?
+  estadoPagamento    EstadoPagamento @default(INICIADO)
+  idempotencyKey     String          @unique
+  idGateway          String?
+  qrCode             String?
+  qrCodeBase64       String?
+  expiraEm           DateTime?
+  tentativas         Int             @default(0)
+  sincronizadoEm     DateTime?
+  ultimoErroGateway  String?
+  dadosGateway       Json?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   pedido Pedido @relation(fields: [pedidoId], references: [id])
 
   @@index([pedidoId])
+  @@index([idGateway])
 }
 
 // ─── Carrinho (REN-11) ────────────────────────────────────────────────────────
