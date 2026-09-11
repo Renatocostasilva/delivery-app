@@ -6,6 +6,7 @@ import { catalogRouter } from "./catalog/routes.js";
 import { categoriesAdminRouter } from "./categories/index.js";
 import { productsAdminRouter } from "./products/index.js";
 import { cartRouter } from "./cart/routes.js";
+import { checkoutRouter } from "./orders/routes.js";
 import { apiNotFound, errorHandler } from "./lib/http.js";
 
 export const app: Express = express();
@@ -19,6 +20,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/catalog", catalogRouter);
 app.use("/api/cart", cartRouter);
+app.use("/api/checkout", checkoutRouter);
 
 app.use("/api/admin/auth", authRouter);
 app.use("/api/admin/categories", categoriesAdminRouter);
