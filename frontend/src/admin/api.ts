@@ -16,8 +16,8 @@ import type {
   TipoEntrega,
   PagamentoAdmin,
   ClienteAdmin,
-  ClienteEndereco,
   PaginaClientesAdmin,
+  ClienteDetalhe,
 } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -510,8 +510,8 @@ export function getClients(params: ClientListParams = {}): Promise<PaginaCliente
   return adminFetch<PaginaClientesAdmin>(`/api/admin/clients${query ? `?${query}` : ''}`);
 }
 
-export function getClient(id: number): Promise<ClienteAdmin & { enderecos: ClienteEndereco[] }> {
-  return adminFetch(`/api/admin/clients/${id}`);
+export function getClient(id: number): Promise<ClienteDetalhe> {
+  return adminFetch<ClienteDetalhe>(`/api/admin/clients/${id}`);
 }
 
 export function createClient(body: ClientInput): Promise<ClienteAdmin> {

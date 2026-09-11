@@ -9,6 +9,7 @@ import { CategoriesPage } from './pages/CategoriesPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
 import { ClientsPage } from './pages/ClientsPage';
+import { ClientDetailPage } from './pages/ClientDetailPage';
 import { ADMIN_BASE } from './constants';
 import './admin.css';
 
@@ -31,6 +32,7 @@ function AdminRoutes() {
         <Route path="pedidos" element={<OrdersPage />} />
         <Route path="pedidos/:id" element={<OrderDetailPage />} />
         <Route path="clientes" element={<ClientsPage />} />
+        <Route path="clientes/:id" element={<ClientDetailPage />} />
         <Route path="*" element={<Navigate to={`${ADMIN_BASE}/dashboard`} replace />} />
       </Routes>
     </AdminLayout>

@@ -20,9 +20,25 @@ interface, sem acoplamento na camada de rotas:
 - `orders` — pedidos
 - `stock` — estoque
 - `payments` — pagamentos
-- `integrations` — (vazio) reservado para provedores externos, ex.: Stone
+- `integrations` — provedores externos (ex.: Stone, MercadoPago)
 
-> Nenhuma lógica de negócio implementada ainda — apenas o esqueleto.
+## Status — funcionalidades entregues
+
+Backend e frontend (PWA + admin) estão implementados e cobertos por testes
+(REN-7 a REN-19). Principais entregas:
+
+- **Catálogo** — categorias, produtos, busca, página de produto, carrinho.
+- **Checkout** — fluxo em 4 etapas (identificação, entrega, resumo, pagamento).
+- **Pagamentos** — integração **MercadoPago** com máquina de estados e
+  sincronização; estorno real via **refund** da API (REN-19).
+- **Gestão de pedidos (admin)** — listagem, transições de status com histórico,
+  dashboard de receita, cancelamento, estorno e impressão de recibo.
+- **Gestão de clientes (admin)** — CRUD completo com base única por telefone,
+  editor de endereços (adicionar/editar/remover/principal), inativação e
+  reativação.
+- **Auth admin** — login com token JWT; rotas protegidas por `requireAuth`.
+
+Nenhum deploy é feito sem aprovação explícita do dono.
 
 ## Requisitos
 

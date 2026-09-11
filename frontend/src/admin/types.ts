@@ -299,3 +299,49 @@ export interface PaginaClientesAdmin {
   page: number;
   pageSize: number;
 }
+
+export interface PedidoDoCliente {
+  id: number;
+  numeroPedido: string;
+  statusPedido: StatusPedido;
+  statusPagamento: StatusPagamento;
+  tipoEntrega: TipoEntrega;
+  total: string;
+  createdAt: string;
+  itens: {
+    produtoNome: string;
+    variacaoNome: string | null;
+    quantidade: number;
+    precoUnitario: string;
+    total: string;
+  }[];
+}
+
+export interface PedidoResumoCliente {
+  id: number;
+  numeroPedido: string;
+  total: string;
+  statusPedido: StatusPedido;
+  statusPagamento: StatusPagamento;
+  createdAt: string;
+}
+
+export interface ResumoCliente {
+  totalPedidos: number;
+  totalComprado: string;
+  primeiroPedido: PedidoResumoCliente | null;
+  ultimoPedido: PedidoResumoCliente | null;
+}
+
+export interface ClienteDetalhe {
+  id: number;
+  nome: string;
+  telefone: string;
+  email: string | null;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+  enderecos: ClienteEndereco[];
+  pedidos: PedidoDoCliente[];
+  resumo: ResumoCliente;
+}

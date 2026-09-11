@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createClient, deleteClient, getClients, updateClient } from '../api';
 import type { ClienteAdmin, ClienteEndereco } from '../types';
 import { Pagination } from '../components/Pagination';
+import { ADMIN_BASE } from '../constants';
 
 const PAGE_SIZE = 20;
 const PAGE = 1;
@@ -62,6 +64,7 @@ const CAMPOS_NOVO_ENDERECO = ['logradouro', 'numero', 'bairro', 'cidade', 'cep']
 const rotuloEndereco = (campo: string, n: number) => `${campo} (endereço ${n})`;
 
 export function ClientsPage() {
+  const navigate = useNavigate();
   const [clientes, setClientes] = useState<ClienteAdmin[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -597,6 +600,13 @@ export function ClientsPage() {
                       <td>{c._count.pedidos}</td>
                       <td>{c.ativo ? 'Ativo' : 'Inativo'}</td>
                       <td className="admin-actions">
+                        <button
+                          type="button"
+                          className="btn btn--small btn--ghost"
+                          onClick={() => navigate(`${ADMIN_BASE}/clientes/${c.id}`)}
+                        >
+                          Ver
+                        </button>
                         <button
                           type="button"
                           className="btn btn--small"
