@@ -508,3 +508,67 @@ describe("GET /api/admin/dashboard", () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ─── Excluir pedido ──────────────────────────────────────────────────────────
+
+describe("DELETE /api/admin/orders/:id", () => {
+  async function criarPedidoComPagamento(estado?: "ESTORNADO" | "PENDENTE" | "APROVADO") {
+    const seq = Date.now();
+    const pedido = await prisma.pedido.create({
+      data: {
+        numeroPedido: `PED-DEL-${seq}`,
+        clienteId,
+        statusPedido: "RECEBIDO",
+        statusPagamento: estado === "ESTORNADO" ? "ESTORNADO" : "PENDENTE",
+        tipoEntrega: "RETIRADA",
+        total: 10,
+        totalProdutos: 10,
+      },
+    });
+    if (estado) {
+      await prisma.pagamento.create({
+        data: {
+          pedidoId: pedido.id,
+          gateway: "fake",
+          valor: 10,
+          estadoPagamento: estado,
+          idempotencyKey: `del-test-${seq}`,
+        },
+      });
+    }
+    return pedido.id;
+  }
+
+  it("rejeita exclusão sem token", async () => {
+    const res = await request(app).delete("/api/admin/orders/1");
+    expect(res.status).toBe(401);
+  });
+
+  it("exclui pedido sem pagamento", async () => {
+    const id = await criarPedidoComPagamento();
+    const res = await request(app)
+      .delete(`/api/admin/orders/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain("excluído");
+    expect(await prisma.pedido.findUnique({ where: { id } })).toBeNull();
+  });
+
+  it("recusa exclusão com pagamento não estornado (409)", async () => {
+    const id = await criarPedidoComPagamento("PENDENTE");
+    const res = await request(app)
+      .delete(`/api/admin/orders/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(409);
+    expect(await prisma.pedido.findUnique({ where: { id } })).not.toBeNull();
+  });
+
+  it("exclui pedido quando todos os pagamentos estão estornados", async () => {
+    const id = await criarPedidoComPagamento("ESTORNADO");
+    const res = await request(app)
+      .delete(`/api/admin/orders/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(await prisma.pedido.findUnique({ where: { id } })).toBeNull();
+  });
+});

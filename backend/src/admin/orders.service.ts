@@ -397,3 +397,40 @@ export async function getPagamentos(pedidoId: number) {
     orderBy: { id: "desc" },
   });
 }
+
+// ─── Excluir pedido ──────────────────────────────────────────────────────────
+//
+// Regra de negócio (admin): só é possível excluir um pedido quando NÃO houver
+// pagamento registrado OU quando TODOS os pagamentos estiverem estornados.
+// Havendo pagamento não estornado, a exclusão é recusada até o estorno.
+// O acesso à rota é restrito a admins (requireAuth em orders.routes.ts).
+
+export async function excluirPedido(id: number) {
+  const pedido = await prisma.pedido.findUnique({
+    where: { id },
+    include: { pagamentos: true },
+  });
+  if (!pedido) throw new HttpError(404, "Pedido não encontrado.");
+
+  const semPagamento = pedido.pagamentos.length === 0;
+  const todosEstornados =
+    pedido.pagamentos.length > 0 &&
+    pedido.pagamentos.every((p) => p.estadoPagamento === "ESTORNADO");
+
+  if (!semPagamento && !todosEstornados) {
+    throw new HttpError(
+      409,
+      "Não é possível excluir o pedido: há pagamento não estornado. Estorne o pagamento antes de excluir.",
+    );
+  }
+
+  // Sem onDelete: Cascade, removemos os filhos em transação antes do pedido.
+  await prisma.$transaction([
+    prisma.statusHistorico.deleteMany({ where: { pedidoId: id } }),
+    prisma.itemPedido.deleteMany({ where: { pedidoId: id } }),
+    prisma.pagamento.deleteMany({ where: { pedidoId: id } }),
+    prisma.pedido.delete({ where: { id } }),
+  ]);
+
+  return { message: "Pedido excluído.", id };
+}

@@ -414,6 +414,12 @@ export function refundOrder(id: number, body: { motivo: string }): Promise<void>
   });
 }
 
+export function deleteOrder(id: number): Promise<{ message: string }> {
+  return adminFetch<{ message: string }>(`/api/admin/orders/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export function getOrderReceipt(id: number): Promise<ReciboPedido> {
   return adminFetch<ReciboPedido>(`/api/admin/orders/${id}/receipt`);
 }

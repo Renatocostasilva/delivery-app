@@ -218,7 +218,7 @@ describe('OrderDetailPage', () => {
     expect(screen.getAllByText('Bacon (+R$ 5,00)').length).toBeGreaterThan(0);
   });
 
-  it('displays TODO button for order deletion', async () => {
+  it('bloqueia exclusão quando há pagamento não estornado', async () => {
     seedSession();
     mockFetchHandler((url) => {
       if (url.includes('/api/admin/orders/1') && !url.includes('/receipt') && !url.includes('/history') && !url.includes('/payments') && !url.includes('/cancel') && !url.includes('/refund') && !url.includes('/status') && !url.includes('/clients')) return ok(orderDetailFixture);
@@ -226,8 +226,35 @@ describe('OrderDetailPage', () => {
     });
     renderAdmin('/admin/pedidos/1');
     await waitFor(() => {
-      expect(screen.getByText('Excluir pedido — TODO')).toBeTruthy();
+      expect(screen.getByText('Pedido #001')).toBeTruthy();
     });
-    expect(screen.getByText('Excluir pedido — TODO')).toBeDisabled();
+    expect(screen.getByText(/pagamento não estornado/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Excluir pedido' })).toBeNull();
+  });
+
+  it('exclui pedido com pagamento estornado após confirmação', async () => {
+    seedSession();
+    const estornado = {
+      ...orderDetailFixture,
+      pagamentos: [{ ...orderDetailFixture.pagamentos[0], estadoPagamento: 'ESTORNADO' }],
+    };
+    let deleted = false;
+    mockFetchHandler((url, init) => {
+      if (init?.method === 'DELETE' && url.includes('/api/admin/orders/1')) {
+        deleted = true;
+        return ok({ message: 'Pedido excluído.' });
+      }
+      if (url.includes('/api/admin/orders/1') && !url.includes('/receipt') && !url.includes('/history') && !url.includes('/payments') && !url.includes('/cancel') && !url.includes('/refund') && !url.includes('/status') && !url.includes('/clients')) return ok(estornado);
+      return ok({});
+    });
+    renderAdmin('/admin/pedidos/1');
+    await waitFor(() => {
+      expect(screen.getByText('Pedido #001')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir pedido' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar exclusão?' }));
+    await waitFor(() => {
+      expect(deleted).toBe(true);
+    });
   });
 });

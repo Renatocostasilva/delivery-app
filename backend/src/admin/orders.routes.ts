@@ -120,6 +120,13 @@ ordersAdminRouter.get("/clients/list", async (req, res) => {
   res.json(result);
 });
 
+// ─── DELETE /:id — excluir pedido (sem pagamento ou com pagamento estornado) ─
+
+ordersAdminRouter.delete("/:id", async (req, res) => {
+  const id = parseIdParam(req.params.id);
+  res.json(await ordersService.excluirPedido(id));
+});
+
 // ─── GET /:id/payments — pagamentos do pedido ───────────────────────────────
 
 ordersAdminRouter.get("/:id/payments", async (req, res) => {

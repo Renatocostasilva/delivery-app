@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { cancelOrder, getOrder, getOrderReceipt, refundOrder, updateOrderStatus } from '../api';
+import { cancelOrder, deleteOrder, getOrder, getOrderReceipt, refundOrder, updateOrderStatus } from '../api';
 import type { PedidoDetalhe, ReciboPedido, StatusPedido } from '../types';
 import { formatBRL } from '../../lib/format';
 import { formatDateTime } from '../lib/format';
@@ -31,6 +31,8 @@ export function OrderDetailPage() {
   const [observacao, setObservacao] = useState('');
   const [cancelMotivo, setCancelMotivo] = useState('');
   const [refundMotivo, setRefundMotivo] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [receipt, setReceipt] = useState<ReciboPedido | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -101,6 +103,22 @@ export function OrderDetailPage() {
     void run(() => refundOrder(orderId, { motivo: refundMotivo }), 'Estorno solicitado.');
   }
 
+  function handleDelete() {
+    setDeleting(true);
+    setActionError(null);
+    setActionSuccess(null);
+    deleteOrder(orderId)
+      .then(() => {
+        setActionSuccess('Pedido excluído.');
+        navigate(`${ADMIN_BASE}/pedidos`);
+      })
+      .catch((e: unknown) => {
+        setActionError(e instanceof Error ? e.message : 'Falha ao excluir pedido');
+        setDeleteConfirm(false);
+      })
+      .finally(() => setDeleting(false));
+  }
+
   async function handlePrintReceipt() {
     setReceiptOpen(true);
     setReceiptLoading(true);
@@ -139,6 +157,9 @@ export function OrderDetailPage() {
   const terminal = isTerminalStatus(detalhe.statusPedido);
   const next = nextStatuses(detalhe.statusPedido);
   const canRefund = detalhe.statusPagamento === 'APROVADO';
+  const canDelete =
+    detalhe.pagamentos.length === 0 ||
+    detalhe.pagamentos.every((p) => p.estadoPagamento === 'ESTORNADO');
 
   return (
     <div className="admin-page">
@@ -437,14 +458,40 @@ export function OrderDetailPage() {
 
         <div className="admin-action-block">
           <h3 className="admin-panel__subtitle">Exclusão</h3>
-          <button
-            type="button"
-            className="btn btn--small btn--ghost"
-            disabled
-            title="TODO: o backend ainda não expõe DELETE /api/admin/orders"
-          >
-            Excluir pedido — TODO
-          </button>
+          {canDelete ? (
+            deleteConfirm ? (
+              <div className="admin-form-row">
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  disabled={deleting}
+                  onClick={handleDelete}
+                >
+                  {deleting ? 'Excluindo…' : 'Confirmar exclusão?'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={deleting}
+                  onClick={() => setDeleteConfirm(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={() => setDeleteConfirm(true)}
+              >
+                Excluir pedido
+              </button>
+            )
+          ) : (
+            <p className="admin-muted">
+              Pedido com pagamento não estornado — exclua apenas após estornar o pagamento.
+            </p>
+          )}
         </div>
       </section>
     </div>
