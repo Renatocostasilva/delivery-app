@@ -268,3 +268,34 @@ export interface DashboardData {
   topProdutos: TopProduto[];
   pedidosRecentes: PedidoRecente[];
 }
+
+export interface ClienteEndereco {
+  id: number;
+  logradouro: string;
+  numero: string;
+  complemento: string | null;
+  bairro: string;
+  cidade: string;
+  cep: string;
+  referencia: string | null;
+  principal: boolean;
+}
+
+export interface ClienteAdmin {
+  id: number;
+  nome: string;
+  telefone: string;
+  email: string | null;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+  enderecos: ClienteEndereco[];
+  _count: { pedidos: number };
+}
+
+export interface PaginaClientesAdmin {
+  data: ClienteAdmin[];
+  total: number;
+  page: number;
+  pageSize: number;
+}

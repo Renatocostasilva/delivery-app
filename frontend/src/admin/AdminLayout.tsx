@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: `${ADMIN_BASE}/produtos`, label: 'Produtos' },
   { to: `${ADMIN_BASE}/categorias`, label: 'Categorias' },
   { to: `${ADMIN_BASE}/pedidos`, label: 'Pedidos' },
+  { to: `${ADMIN_BASE}/clientes`, label: 'Clientes' },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {

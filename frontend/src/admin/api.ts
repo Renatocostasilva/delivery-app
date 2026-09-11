@@ -15,6 +15,9 @@ import type {
   DashboardData,
   TipoEntrega,
   PagamentoAdmin,
+  ClienteAdmin,
+  ClienteEndereco,
+  PaginaClientesAdmin,
 } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -447,4 +450,64 @@ export function getOrderClients(params: ClientListParams = {}): Promise<PaginaCl
 
 export function tipoEntregaLabel(tipo: TipoEntrega): string {
   return tipo === 'ENTREGA' ? 'Entrega' : 'Retirada';
+}
+
+// ---- Clientes (admin) — CRUD via /api/admin/clients (REN-10) ----
+
+export interface ClientEnderecoInput {
+  logradouro: string;
+  numero: string;
+  bairro: string;
+  cidade: string;
+  cep: string;
+  complemento?: string | null;
+  referencia?: string | null;
+  principal?: boolean;
+}
+
+export interface ClientInput {
+  nome?: string;
+  telefone?: string;
+  email?: string | null;
+  ativo?: boolean;
+  enderecos?: ClientEnderecoInput[];
+}
+
+export interface ClientListParams {
+  busca?: string;
+  ativo?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export function getClients(params: ClientListParams = {}): Promise<PaginaClientesAdmin> {
+  const qs = new URLSearchParams();
+  if (params.busca) qs.set('busca', params.busca);
+  if (params.ativo !== undefined) qs.set('ativo', String(params.ativo));
+  if (params.page) qs.set('page', String(params.page));
+  if (params.pageSize) qs.set('pageSize', String(params.pageSize));
+  const query = qs.toString();
+  return adminFetch<PaginaClientesAdmin>(`/api/admin/clients${query ? `?${query}` : ''}`);
+}
+
+export function getClient(id: number): Promise<ClienteAdmin & { enderecos: ClienteEndereco[] }> {
+  return adminFetch(`/api/admin/clients/${id}`);
+}
+
+export function createClient(body: ClientInput): Promise<ClienteAdmin> {
+  return adminFetch<ClienteAdmin>('/api/admin/clients', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateClient(id: number, body: ClientInput): Promise<ClienteAdmin> {
+  return adminFetch<ClienteAdmin>(`/api/admin/clients/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteClient(id: number): Promise<void> {
+  return adminFetch<void>(`/api/admin/clients/${id}`, { method: 'DELETE' });
 }
