@@ -264,3 +264,75 @@ model Pagamento {
 
   @@index([pedidoId])
 }
+
+// ─── Carrinho (REN-11) ────────────────────────────────────────────────────────
+
+/// Status do carrinho de compras.
+enum StatusCarrinho {
+  ATIVO
+  CONVERTIDO
+  EXPIRADO
+}
+
+/// Tipo de desconto de cupom.
+enum TipoCupom {
+  PORCENTAGEM
+  FIXO
+}
+
+/// Carrinho persistente do cliente (sem autenticação — identificado por cartKey UUID).
+model Cart {
+  id        Int            @id @default(autoincrement())
+  cartKey   String         @unique @default(uuid())
+  status    StatusCarrinho @default(ATIVO)
+  cupomId   Int?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  itens CartItem[]
+  cupom Cupom?     @relation(fields: [cupomId], references: [id])
+
+  @@index([status])
+}
+
+/// Item do carrinho. Adicionais são armazenados como snapshot JSON para
+/// permitir recálculo contra o banco sem perder a seleção do usuário.
+/// O campo `adicionaisSelecionados` guarda [{adicionalId, quantidade}] —
+/// valores de nome/preço são sempre re-consultados do banco no GET.
+model CartItem {
+  id                    Int     @id @default(autoincrement())
+  cartId                Int
+  produtoId             Int
+  variacaoId            Int?
+  quantidade            Int
+  adicionaisSelecionados Json    @default("[]")
+  observacoes           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+}
+
+/// Cupom de desconto. Suporta percentual e valor fixo, com controle de
+/// uso máximo, período de validade e aplicação opcional ao frete.
+model Cupom {
+  id            Int       @id @default(autoincrement())
+  codigo        String    @unique
+  tipo          TipoCupom
+  valor         Decimal
+  ativo         Boolean   @default(true)
+  dataInicio    DateTime?
+  dataFim       DateTime?
+  usoMaximo     Int?
+  usoAtual      Int       @default(0)
+  aplicavelFrete Boolean  @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  carrinhos Cart[]
+
+  @@index([ativo])
+  @@index([codigo])
+}

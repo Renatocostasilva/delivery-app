@@ -1,6 +1,11 @@
 import { prisma } from "./prisma.js";
 
 export async function resetDatabase() {
+  // Carrinho (REN-11) — limpa antes das dependências de produto
+  await prisma.cartItem.deleteMany();
+  await prisma.cart.deleteMany();
+  await prisma.cupom.deleteMany();
+  // Catálogo
   await prisma.produtoImagem.deleteMany();
   await prisma.variacao.deleteMany();
   await prisma.adicional.deleteMany();
