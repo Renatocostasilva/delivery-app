@@ -139,6 +139,8 @@ export type EstadoPagamento =
   | 'EXPIRADO'
   | 'ESTORNADO';
 
+export type FormaPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO_CREDITO' | 'CARTAO_DEBITO';
+
 export interface ItemPedido {
   id: number;
   produtoId: number;
@@ -173,6 +175,7 @@ export interface PedidoConfirmado {
   numeroPedido: string;
   statusPedido: StatusPedido;
   statusPagamento: EstadoPagamento;
+  formaPagamento?: FormaPagamento | null;
   tipoEntrega: TipoEntrega;
   enderecoSnapshot: EnderecoSnapshot | null;
   taxasEntrega: string;
@@ -293,6 +296,7 @@ export interface ConfirmarPedidoInput {
   tipoEntrega: TipoEntrega;
   endereco?: EnderecoInput | null;
   observacoes?: string | null;
+  formaPagamento?: FormaPagamento;
 }
 
 export async function confirmarPedido(

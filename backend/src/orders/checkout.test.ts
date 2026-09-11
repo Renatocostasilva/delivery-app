@@ -606,4 +606,42 @@ describe("POST /api/checkout/confirm", () => {
       data: { disponivel: true },
     });
   });
+
+  it("cria pedido em DINHEIRO sem gateway (status RECEBIDO, pagamento local PENDENTE)", async () => {
+    const telefone = "11" + "9" + "777" + "0000";
+    const { cartKey } = await criarCarrinhoComItem();
+    const res = await request(app).post("/api/checkout/confirm").send({
+      cartKey,
+      idempotencyKey: idempotencia(),
+      nome: "Cliente Dinheiro",
+      telefone: "+55".concat(telefone),
+      tipoEntrega: "RETIRADA",
+      formaPagamento: "DINHEIRO",
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.formaPagamento).toBe("DINHEIRO");
+    expect(res.body.statusPedido).toBe("RECEBIDO");
+    expect(res.body.statusPagamento).toBe("PENDENTE");
+    expect(res.body.pagamentos).toHaveLength(1);
+    const pag = res.body.pagamentos[0];
+    expect(pag.gateway).toBe("dinheiro");
+    expect(pag.estadoPagamento).toBe("PENDENTE");
+    expect(pag.meioPagamento).toBe("dinheiro");
+  });
+
+  it("rejeita formaPagamento invalida (400)", async () => {
+    const telefone = "11" + "9" + "666" + "0000";
+    const { cartKey } = await criarCarrinhoComItem();
+    const res = await request(app).post("/api/checkout/confirm").send({
+      cartKey,
+      idempotencyKey: idempotencia(),
+      nome: "Invalido",
+      telefone: "+55".concat(telefone),
+      tipoEntrega: "RETIRADA",
+      formaPagamento: "CHEQUE",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/formaPagamento/);
+  });
 });

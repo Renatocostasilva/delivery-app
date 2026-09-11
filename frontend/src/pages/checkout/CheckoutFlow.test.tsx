@@ -224,6 +224,7 @@ function renderCheckout() {
               path="/checkout/pagamento/:pedidoId"
               element={<PaymentPage pollMs={50} />}
             />
+            <Route path="/pedido/:id" element={<div>PAGINA_PEDIDO</div>} />
           </Routes>
         </CheckoutProvider>
       </CartProvider>
@@ -287,5 +288,53 @@ describe('CheckoutFlow', () => {
 
     // carrinho local esvaziado após confirmar
     expect(JSON.parse(localStorage.getItem('delivery-app:cart') ?? '{"items":[]}').items).toEqual([]);
+  });
+
+  it('seleciona Dinheiro, confirma sem gateway e vai para a página do pedido', async () => {
+    localStorage.setItem('delivery-app:cart', JSON.stringify({ items: [itemLocal] }));
+    renderCheckout();
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Identificação' })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Nome completo')).toBeTruthy();
+    });
+    fireEvent.change(screen.getByLabelText('Nome completo'), { target: { value: 'Maria' } });
+    fireEvent.change(screen.getByLabelText('WhatsApp / telefone'), { target: { value: '(11) 99999-9999' } });
+    fireEvent.change(screen.getByLabelText('E-mail (para o recibo)'), { target: { value: 'maria@email.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Entrega' })).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('radio')[1]); // Entrega no endereço
+    await waitFor(() => {
+      expect(screen.getByLabelText('Logradouro')).toBeTruthy();
+    });
+    fireEvent.change(screen.getByLabelText('Logradouro'), { target: { value: 'Rua das Flores' } });
+    fireEvent.change(screen.getByLabelText('Número'), { target: { value: '45' } });
+    fireEvent.change(screen.getByLabelText('Bairro'), { target: { value: 'Centro' } });
+    fireEvent.change(screen.getByLabelText('Cidade'), { target: { value: 'São Paulo' } });
+    fireEvent.change(screen.getByLabelText('CEP'), { target: { value: '01000-000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Confirmação' })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getAllByText('R$ 64,90').length).toBeGreaterThan(0);
+    });
+
+    // Seleciona Dinheiro
+    fireEvent.click(screen.getByLabelText('Dinheiro (pagar na entrega/retirada)'));
+    expect(screen.getByText(/não usa gateway/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar pedido — pagar na entrega/ }));
+
+    // Vai para a página do pedido (não para o PaymentPage/gateway)
+    expect(await screen.findByText('PAGINA_PEDIDO')).toBeTruthy();
+
+    // confirm enviou formaPagamento DINHEIRO e NÃO houve chamada de cobrança
+    const confirmCall = fetchMock.mock.calls.find(([u]) => String(u).endsWith('/api/checkout/confirm'));
+    expect(confirmCall).toBeTruthy();
+    const body = JSON.parse((confirmCall?.[1] as RequestInit)?.body as string);
+    expect(body.formaPagamento).toBe('DINHEIRO');
+    const cobrancaCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/api/payments/10/cobrancas'));
+    expect(cobrancaCall).toBeUndefined();
   });
 });

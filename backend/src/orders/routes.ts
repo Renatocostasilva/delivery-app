@@ -103,6 +103,7 @@ checkoutRouter.post("/confirm", async (req, res, next) => {
       tipoEntrega: body.tipoEntrega as string,
       endereco: body.endereco,
       observacoes: body.observacoes as string | null | undefined,
+      formaPagamento: body.formaPagamento as string | undefined,
     });
 
     res.status(result.jaExistia ? 200 : 201).json(result.pedido);

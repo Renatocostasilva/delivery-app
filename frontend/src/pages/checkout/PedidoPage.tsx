@@ -48,6 +48,7 @@ export function PedidoPage() {
   if (!dados) return null;
 
   const { pedido, pagamento } = dados;
+  const ehDinheiro = pagamento.gateway === 'dinheiro';
   const aprovado = pagamento.estadoPagamento === 'APROVADO';
   const aguardando = !aprovado && !['RECUSADO', 'CANCELADO', 'EXPIRADO', 'ESTORNADO'].includes(pagamento.estadoPagamento);
   const tipoEntrega = pedidoConfirmado?.tipoEntrega ?? null;
@@ -90,7 +91,13 @@ export function PedidoPage() {
 
       {aguardando && (
         <div className="order__pending" role="status">
-          <p className="order__pending-title">{pagamento.estadoPagamento === 'PENDENTE' ? 'Pagamento em confirmação' : 'Aguardando pagamento'}</p>
+          <p className="order__pending-title">
+            {ehDinheiro
+              ? 'Pedido confirmado — pague em dinheiro na entrega/retirada'
+              : pagamento.estadoPagamento === 'PENDENTE'
+                ? 'Pagamento em confirmação'
+                : 'Aguardando pagamento'}
+          </p>
           <p className="order__number">{pedido.numeroPedido}</p>
         </div>
       )}
@@ -129,7 +136,7 @@ export function PedidoPage() {
         )}
       </dl>
 
-      {aguardando && (
+      {aguardando && !ehDinheiro && (
         <Link to={`/checkout/pagamento/${pedidoId}`} className="checkout-step__btn">
           Ver pagamento
         </Link>

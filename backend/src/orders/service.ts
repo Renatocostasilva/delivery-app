@@ -219,6 +219,7 @@ export async function confirmarPedido(input: {
   tipoEntrega: string;
   endereco?: unknown;
   observacoes?: string | null;
+  formaPagamento?: string;
 }) {
   // 1. Idempotência: reenvio com a mesma chave devolve o pedido criado
   const pagamentoExistente = await findPagamentoByIdempotencyKey(
@@ -237,6 +238,23 @@ export async function confirmarPedido(input: {
   const tipoEntrega = validarTipoEntrega(input.tipoEntrega);
   const endereco = validarEndereco(input.endereco);
   const observacoes = v.nullString(input.observacoes, "observacoes");
+
+  const FORMAS_VALIDAS = [
+    "PIX",
+    "DINHEIRO",
+    "CARTAO_CREDITO",
+    "CARTAO_DEBITO",
+  ] as const;
+  const formaPagamento = (input.formaPagamento ?? "PIX") as
+    | (typeof FORMAS_VALIDAS)[number]
+    | string;
+  if (!FORMAS_VALIDAS.includes(formaPagamento as (typeof FORMAS_VALIDAS)[number])) {
+    throw new HttpError(
+      400,
+      `Campo \"formaPagamento\" deve ser uma das opções: ${FORMAS_VALIDAS.join(", ")}.`,
+    );
+  }
+  const ehDinheiro = formaPagamento === "DINHEIRO";
 
   if (tipoEntrega === "ENTREGA" && !endereco) {
     throw new HttpError(
@@ -263,8 +281,9 @@ export async function confirmarPedido(input: {
       data: {
         numeroPedido,
         clienteId: cliente.id,
-        statusPedido: "AGUARDANDO_PAGAMENTO",
-        statusPagamento: "INICIADO",
+        statusPedido: ehDinheiro ? "RECEBIDO" : "AGUARDANDO_PAGAMENTO",
+        statusPagamento: ehDinheiro ? "PENDENTE" : "INICIADO",
+        formaPagamento,
         tipoEntrega,
         enderecoSnapshot: endereco ?? undefined,
         taxasEntrega: taxaEntrega,
@@ -297,7 +316,22 @@ export async function confirmarPedido(input: {
       });
     }
 
-    await criarPagamento(criado.id, total, input.idempotencyKey, tx);
+    if (ehDinheiro) {
+      // Dinheiro: sem gateway. Registra um Pagamento local "PENDENTE" (pago na
+      // entrega/retirada), preservando idempotência e o painel do admin.
+      await tx.pagamento.create({
+        data: {
+          pedidoId: criado.id,
+          gateway: "dinheiro",
+          meioPagamento: "dinheiro",
+          estadoPagamento: "PENDENTE",
+          valor: total,
+          idempotencyKey: input.idempotencyKey,
+        },
+      });
+    } else {
+      await criarPagamento(criado.id, total, input.idempotencyKey, tx);
+    }
 
     await tx.cart.update({
       where: { id: cart.id },

@@ -4,8 +4,15 @@ import { useCheckout } from '../../context/CheckoutContext';
 import { useCart } from '../../context/CartContext';
 import * as api from '../../api/checkout';
 import { ApiError } from '../../api/checkout';
-import type { ResumoPedido } from '../../api/checkout';
+import type { ResumoPedido, FormaPagamento } from '../../api/checkout';
 import { formatBRL } from '../../lib/format';
+
+const FORMAS: { valor: FormaPagamento; rotulo: string }[] = [
+  { valor: 'PIX', rotulo: 'Pix' },
+  { valor: 'DINHEIRO', rotulo: 'Dinheiro (pagar na entrega/retirada)' },
+  { valor: 'CARTAO_CREDITO', rotulo: 'Cartão de Crédito' },
+  { valor: 'CARTAO_DEBITO', rotulo: 'Cartão de Débito' },
+];
 
 export function SummaryStep() {
   const navigate = useNavigate();
@@ -21,6 +28,7 @@ export function SummaryStep() {
 
   const [resumo, setResumo] = useState<ResumoPedido | null>(null);
   const [observacoes, setObservacoes] = useState('');
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('PIX');
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [confirmando, setConfirmando] = useState(false);
@@ -50,6 +58,7 @@ export function SummaryStep() {
   const clienteAtual = cliente;
   const tipoEntregaAtual = tipoEntrega;
   const idempotencyKeyAtual = idempotencyKey;
+  const formaAtual = formaPagamento;
 
   function confirmar() {
     setConfirmando(true);
@@ -63,11 +72,16 @@ export function SummaryStep() {
         tipoEntrega: tipoEntregaAtual,
         endereco,
         observacoes: observacoes.trim() || null,
+        formaPagamento: formaAtual,
       })
       .then((pedido) => {
         setPedidoConfirmado(pedido);
         clear();
-        navigate(`/checkout/pagamento/${pedido.id}`);
+        if (formaAtual === 'DINHEIRO') {
+          navigate(`/pedido/${pedido.id}`);
+        } else {
+          navigate(`/checkout/pagamento/${pedido.id}`);
+        }
       })
       .catch((err: unknown) => {
         setErro(
@@ -181,6 +195,29 @@ export function SummaryStep() {
         />
       </label>
 
+      <fieldset className="checkout-form__field checkout-payment">
+        <legend className="checkout-form__label">Forma de pagamento</legend>
+        <div className="checkout-payment__options">
+          {FORMAS.map((f) => (
+            <label key={f.valor} className="checkout-payment__option">
+              <input
+                type="radio"
+                name="formaPagamento"
+                value={f.valor}
+                checked={formaPagamento === f.valor}
+                onChange={() => setFormaPagamento(f.valor)}
+              />
+              <span>{f.rotulo}</span>
+            </label>
+          ))}
+        </div>
+        {formaPagamento === 'DINHEIRO' && (
+          <p className="checkout-form__hint">
+            Pagamento em dinheiro será feito na entrega/retirada — não usa gateway.
+          </p>
+        )}
+      </fieldset>
+
       {erro && <div className="checkout-step__error" role="alert">{erro}</div>}
 
       <div className="checkout-step__actions">
@@ -190,7 +227,11 @@ export function SummaryStep() {
           disabled={confirmando || resumo.itensPendentes}
           onClick={confirmar}
         >
-          {confirmando ? 'Confirmando…' : `Confirmar pedido — ${formatBRL(resumo.total)}`}
+          {confirmando
+            ? 'Confirmando…'
+            : formaPagamento === 'DINHEIRO'
+              ? `Confirmar pedido — pagar na entrega`
+              : `Confirmar pedido — ${formatBRL(resumo.total)}`}
         </button>
         <Link to="/checkout/entrega" className="checkout-step__back">
           Voltar
