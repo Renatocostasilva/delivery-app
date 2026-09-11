@@ -215,9 +215,10 @@ model Pedido {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  cliente    Cliente       @relation(fields: [clienteId], references: [id])
+  cliente    Cliente          @relation(fields: [clienteId], references: [id])
   itens      ItemPedido[]
   pagamentos Pagamento[]
+  historico  StatusHistorico[]
 
   @@index([clienteId])
   @@index([statusPedido])
@@ -272,6 +273,24 @@ model Pagamento {
 
   @@index([pedidoId])
   @@index([idGateway])
+}
+
+/// Histórico de mudanças de status de um pedido. Cada registro representa
+/// uma transição (ex.: RECEBIDO → EM_PREPARACAO) com admin, timestamp e
+/// observação opcional.
+model StatusHistorico {
+  id            Int          @id @default(autoincrement())
+  pedidoId      Int
+  de            StatusPedido?
+  para          StatusPedido
+  adminId       Int?
+  observacao    String?
+  criadoEm      DateTime     @default(now())
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id])
+
+  @@index([pedidoId])
+  @@index([criadoEm])
 }
 
 // ─── Carrinho (REN-11) ────────────────────────────────────────────────────────

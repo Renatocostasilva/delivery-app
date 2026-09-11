@@ -1,6 +1,8 @@
 import { prisma } from "./prisma.js";
 
 export async function resetDatabase() {
+  // REN-14 — histórico de status (depende de pedidos)
+  await prisma.statusHistorico.deleteMany();
   // Checkout (REN-12) — dependências financeiras primeiro
   await prisma.pagamento.deleteMany();
   await prisma.itemPedido.deleteMany();
