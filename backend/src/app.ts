@@ -7,6 +7,7 @@ import { dashboardAdminRouter } from "./admin/dashboard.routes.js";
 import { catalogRouter } from "./catalog/routes.js";
 import { categoriesAdminRouter } from "./categories/index.js";
 import { productsAdminRouter } from "./products/index.js";
+import { clientsAdminRouter } from "./admin/clients.routes.js";
 import { cartRouter } from "./cart/routes.js";
 import { checkoutRouter } from "./orders/routes.js";
 import { paymentsRouter } from "./payments/routes.js";
@@ -31,6 +32,7 @@ app.use("/api/admin/orders", ordersAdminRouter);
 app.use("/api/admin/dashboard", dashboardAdminRouter);
 app.use("/api/admin/categories", categoriesAdminRouter);
 app.use("/api/admin/products", productsAdminRouter);
+app.use("/api/admin/clients", clientsAdminRouter);
 
 app.use(apiNotFound);
 app.use(errorHandler);
