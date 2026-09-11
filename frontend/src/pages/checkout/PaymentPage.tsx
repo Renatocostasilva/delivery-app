@@ -35,11 +35,6 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   const [copiado, setCopiado] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [cardNumero, setCardNumero] = useState('');
-  const [cardNome, setCardNome] = useState('');
-  const [cardValidade, setCardValidade] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-
   useEffect(() => {
     if (formaPagamento === 'DINHEIRO') {
       navigate(`/pedido/${id}`, { replace: true });
@@ -115,13 +110,20 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     }
   }
 
-  async function pagarComCartao() {
+  async function pagarComCartao(
+    token: string,
+    paymentMethodId: string,
+    installments?: number,
+  ) {
     setCriando(true);
     setErro(null);
     try {
       const resultado = await api.criarCobranca(id, {
         metodo: 'cartao',
-        email: cliente?.email || undefined,
+        email: cliente?.email || pedidoConfirmado?.cliente?.email || undefined,
+        token,
+        paymentMethodId,
+        installments,
       });
       setCobranca(resultado);
       setStatus(resultado.pagamento.estadoPagamento);
@@ -136,13 +138,87 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     }
   }
 
+  // Cartão: monta o MercadoPago Bricks (CardPayment) para tokenizar o cartão no
+  // navegador (o número cru nunca toca nosso backend — requisito PCI).
+  useEffect(() => {
+    if (!isCartao) return;
+    let cancelado = false;
+    const pubKey = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
+    if (!pubKey) {
+      setErro('Cartão indisponível: chave pública do MercadoPago não configurada.');
+      return;
+    }
+    const carregarSdk = () =>
+      new Promise<void>((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://sdk.mercadopago.com/js/v2';
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Falha ao carregar o SDK do MercadoPago.'));
+        document.head.appendChild(s);
+      });
+    (async () => {
+      try {
+        await carregarSdk();
+        const mp = (window as unknown as {
+          Mercadopago: {
+            setPublishableKey: (k: string) => void;
+            bricks: () => {
+              create: (
+                kind: string,
+                container: string,
+                opts: Record<string, unknown>,
+              ) => Promise<unknown>;
+            };
+          };
+        }).Mercadopago;
+        mp.setPublishableKey(pubKey);
+        const bricks = mp.bricks();
+        const amount = Number(pedidoConfirmado?.total ?? 0);
+        await bricks.create('cardPayment', 'mp-card-brick', {
+          initialization: { amount },
+          callbacks: {
+            onSubmit: async (cardData: {
+              token?: string;
+              paymentMethodId?: string;
+              installments?: number;
+            }) => {
+              if (!cardData.token || !cardData.paymentMethodId) {
+                setErro('Não foi possível gerar o token do cartão.');
+                return;
+              }
+              await pagarComCartao(cardData.token, cardData.paymentMethodId, cardData.installments);
+            },
+            onError: (err: { message?: string }) =>
+              setErro(err?.message ?? 'Erro ao processar o cartão.'),
+          },
+        });
+      } catch (e: unknown) {
+        if (!cancelado) {
+          setErro(e instanceof Error ? e.message : 'Falha ao carregar pagamento por cartão.');
+        }
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCartao]);
+
+  function reprocessar() {
+    if (isCartao) {
+      window.location.reload(); // remonta o brick do cartão
+      return;
+    }
+    void iniciarCobranca();
+  }
+
   if (erro && !cobranca) {
     return (
       <div className="payment">
         <h1 className="payment__title">Pagamento</h1>
         <div className="payment__error" role="alert">
           <p>{erro}</p>
-          <button type="button" className="checkout-step__btn" onClick={() => void (isCartao ? pagarComCartao() : iniciarCobranca())}>
+          <button type="button" className="checkout-step__btn" onClick={reprocessar}>
             Tentar novamente
           </button>
         </div>
@@ -162,65 +238,15 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
       )}
 
       {isCartao && (
-        <form
-          className="payment__card"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void pagarComCartao();
-          }}
-        >
+        <div className="payment__card">
           <p className="payment__label">
             {formaPagamento === 'CARTAO_CREDITO' ? 'Cartão de crédito' : 'Cartão de débito'}
           </p>
-          <label className="checkout-form__field">
-            <span className="checkout-form__label">Número do cartão</span>
-            <input
-              className="checkout-form__input"
-              aria-label="Número do cartão"
-              inputMode="numeric"
-              value={cardNumero}
-              onChange={(e) => setCardNumero(e.target.value)}
-            />
-          </label>
-          <label className="checkout-form__field">
-            <span className="checkout-form__label">Nome no cartão</span>
-            <input
-              className="checkout-form__input"
-              aria-label="Nome no cartão"
-              value={cardNome}
-              onChange={(e) => setCardNome(e.target.value)}
-            />
-          </label>
-          <div className="checkout-form__row">
-            <label className="checkout-form__field">
-              <span className="checkout-form__label">Validade (MM/AA)</span>
-              <input
-                className="checkout-form__input"
-                aria-label="Validade"
-                placeholder="MM/AA"
-                value={cardValidade}
-                onChange={(e) => setCardValidade(e.target.value)}
-              />
-            </label>
-            <label className="checkout-form__field">
-              <span className="checkout-form__label">CVV</span>
-              <input
-                className="checkout-form__input"
-                aria-label="CVV"
-                inputMode="numeric"
-                value={cardCvv}
-                onChange={(e) => setCardCvv(e.target.value)}
-              />
-            </label>
-          </div>
+          <div id="mp-card-brick" className="payment__card-brick" aria-label="Formulário de cartão MercadoPago" />
           <p className="checkout-form__hint">
-            O cartão é processado pelo gateway de pagamento (MercadoPago). Necessita das
-            credenciais configuradas no backend.
+            O cartão é tokenizado no navegador pelo MercadoPago — os dados não passam pelo servidor.
           </p>
-          <button type="submit" className="checkout-step__btn" disabled={criando}>
-            {criando ? 'Processando…' : 'Pagar com cartão'}
-          </button>
-        </form>
+        </div>
       )}
 
       {criando && <div className="checkout-step__loading" role="status">Gerando cobrança…</div>}
@@ -228,7 +254,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
       {!criando && FALHAS.includes(status) && (
         <div className="payment__status payment__status--fail">
           <p>{LABELS[status]}</p>
-          <button type="button" className="checkout-step__btn" onClick={() => void (isCartao ? pagarComCartao() : iniciarCobranca())}>
+          <button type="button" className="checkout-step__btn" onClick={reprocessar}>
             Pagar novamente
           </button>
         </div>

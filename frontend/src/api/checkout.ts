@@ -312,7 +312,13 @@ export async function confirmarPedido(
 
 export async function criarCobranca(
   pedidoId: number,
-  input: { metodo: 'pix' | 'cartao'; email?: string },
+  input: {
+    metodo: 'pix' | 'cartao';
+    email?: string;
+    token?: string;
+    paymentMethodId?: string;
+    installments?: number;
+  },
 ): Promise<ResultadoCobranca> {
   return fetchJSON<ResultadoCobranca>(`/api/payments/${pedidoId}/cobrancas`, {
     method: 'POST',

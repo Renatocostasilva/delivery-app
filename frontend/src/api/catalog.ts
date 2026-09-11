@@ -1,9 +1,11 @@
 import type { Categoria, HomeData, PaginaProdutos, ProdutoDetalhe } from './types';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+function apiUrl(): string {
+  return import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+}
 
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${apiUrl()}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   });
