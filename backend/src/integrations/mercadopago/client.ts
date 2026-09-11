@@ -89,8 +89,11 @@ export class MercadoPagoClient {
       clearTimeout(timer);
     }
 
-    const body: MercadoPagoPayment & MercadoPagoErrorBody | null =
-      await res.json().catch(() => null);
+    type ApiErrorFields = Partial<Omit<MercadoPagoErrorBody, "status">>;
+    const body: (MercadoPagoPayment & ApiErrorFields) | null =
+      (await res.json().catch(() => null)) as unknown as
+        | (MercadoPagoPayment & ApiErrorFields)
+        | null;
 
     if (!res.ok) {
       const mensagem = Array.isArray(body?.message)

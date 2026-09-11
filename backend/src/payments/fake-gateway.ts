@@ -1,11 +1,10 @@
 /**
- * test/fake-gateway.ts — REN-13
+ * fake-gateway.ts — REN-13
  *
  * Gateway de pagamento simulado para testes. Configurável para retornar
  * status pré-definidos, simular timeout, falhas, etc.
  */
 
-import { randomUUID } from "node:crypto";
 import type {
   CobrancaCriada,
   CriarCobrancaCartaoInput,
@@ -14,7 +13,7 @@ import type {
   NotificacaoHttp,
   StatusGateway,
   StatusGatewayInfo,
-} from "../src/payments/gateway.js";
+} from "./gateway.js";
 
 export type FakeGatewayConfig = {
   /** Status retornado por padrão ao criar PIX (default: "PENDENTE"). */

@@ -174,6 +174,11 @@ export class MercadoPagoGateway implements GatewayPagamento {
   }
 
   #validarAssinatura(notificacao: NotificacaoHttp, idGateway: unknown): void {
+    const webhookSecret = this.config.webhookSecret;
+    if (!webhookSecret) {
+      throw new HttpError(500, "Webhook secret não configurado.");
+    }
+
     const signHeader = primeiroCabecalho(notificacao.headers["x-signature"]);
     const { ts, v1 } = parsearAssinatura(signHeader);
 
@@ -187,7 +192,7 @@ export class MercadoPagoGateway implements GatewayPagamento {
       notificacao.headers["x-request-id"],
     ) ?? "";
     const manifest = `id:${idGateway};request-id:${requestIdHeader};ts:${ts};`;
-    const esperado = createHmac("sha256", this.config.webhookSecret)
+    const esperado = createHmac("sha256", webhookSecret)
       .update(manifest)
       .digest("hex");
 

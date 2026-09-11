@@ -17,7 +17,7 @@ import { app } from "../app.js";
 import { prisma } from "../lib/prisma.js";
 import { resetDatabase } from "../lib/test-utils.js";
 import { setGateway, clearGateway, GatewayError } from "./gateway.js";
-import { FakeGateway } from "../../test/fake-gateway.js";
+import { FakeGateway } from "./fake-gateway.js";
 
 let fake: FakeGateway;
 
@@ -38,9 +38,9 @@ afterAll(() => {
 // Helper: cria cliente + pedido AGUARDANDO_PAGAMENTO + Pagamento INICIADO
 async function seedPedido(overrides?: {
   idempotencyKey?: string;
-  estadoPagamento?: string;
   idGateway?: string;
   emailCliente?: string | null;
+  estadoPagamento?: "INICIADO" | "PENDENTE" | "APROVADO" | "RECUSADO" | "CANCELADO" | "EXPIRADO" | "ESTORNADO";
 }) {
   const cliente = await prisma.cliente.create({
     data: {
