@@ -465,6 +465,26 @@ export interface ClientEnderecoInput {
   principal?: boolean;
 }
 
+export interface ClientEnderecoUpdateInput {
+  id?: number;
+  remover?: boolean;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  cep?: string;
+  complemento?: string | null;
+  referencia?: string | null;
+  principal?: boolean;
+}
+
+export interface ClientUpdateInput {
+  nome?: string;
+  email?: string | null;
+  ativo?: boolean;
+  enderecos?: ClientEnderecoUpdateInput[];
+}
+
 export interface ClientInput {
   nome?: string;
   telefone?: string;
@@ -501,7 +521,7 @@ export function createClient(body: ClientInput): Promise<ClienteAdmin> {
   });
 }
 
-export function updateClient(id: number, body: ClientInput): Promise<ClienteAdmin> {
+export function updateClient(id: number, body: ClientUpdateInput): Promise<ClienteAdmin> {
   return adminFetch<ClienteAdmin>(`/api/admin/clients/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body),

@@ -1,30 +1,65 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { createClient, deleteClient, getClients, updateClient } from '../api';
-import type { ClienteAdmin } from '../types';
+import type { ClienteAdmin, ClienteEndereco } from '../types';
 import { Pagination } from '../components/Pagination';
 
 const PAGE_SIZE = 20;
 const PAGE = 1;
 
-interface NovoEndereco {
+type EnderecoEdicao = {
+  id?: number;
   logradouro: string;
   numero: string;
   bairro: string;
   cidade: string;
   cep: string;
-}
+  complemento: string;
+  referencia: string;
+  principal: boolean;
+  removendo: boolean;
+};
 
 interface EditState {
   id: number;
   nome: string;
   email: string;
   ativo: boolean;
+  enderecos: EnderecoEdicao[];
 }
 
-function vazio(): NovoEndereco {
-  return { logradouro: '', numero: '', bairro: '', cidade: '', cep: '' };
+function enderecoVazio(): EnderecoEdicao {
+  return {
+    logradouro: '',
+    numero: '',
+    bairro: '',
+    cidade: '',
+    cep: '',
+    complemento: '',
+    referencia: '',
+    principal: false,
+    removendo: false,
+  };
 }
+
+function daApi(e: ClienteEndereco): EnderecoEdicao {
+  return {
+    id: e.id,
+    logradouro: e.logradouro,
+    numero: e.numero,
+    bairro: e.bairro,
+    cidade: e.cidade,
+    cep: e.cep,
+    complemento: e.complemento ?? '',
+    referencia: e.referencia ?? '',
+    principal: e.principal,
+    removendo: false,
+  };
+}
+
+const CAMPOS_NOVO_ENDERECO = ['logradouro', 'numero', 'bairro', 'cidade', 'cep'] as const;
+
+const rotuloEndereco = (campo: string, n: number) => `${campo} (endereço ${n})`;
 
 export function ClientsPage() {
   const [clientes, setClientes] = useState<ClienteAdmin[]>([]);
@@ -39,7 +74,7 @@ export function ClientsPage() {
   const [newNome, setNewNome] = useState('');
   const [newTelefone, setNewTelefone] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newEnderecos, setNewEnderecos] = useState<NovoEndereco[]>([]);
+  const [newEnderecos, setNewEnderecos] = useState<EnderecoEdicao[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -69,9 +104,22 @@ export function ClientsPage() {
     load();
   }, [load]);
 
-  function atualizarEndereco(index: number, campo: keyof NovoEndereco, valor: string) {
+  function atualizarNovoEndereco(index: number, campo: keyof EnderecoEdicao, valor: string | boolean) {
     setNewEnderecos((prev) =>
       prev.map((end, i) => (i === index ? { ...end, [campo]: valor } : end)),
+    );
+  }
+
+  function atualizarEnderecoEditado(index: number, campo: keyof EnderecoEdicao, valor: string | boolean) {
+    setEdit((prev) =>
+      prev
+        ? {
+            ...prev,
+            enderecos: prev.enderecos.map((end, i) =>
+              i === index ? { ...end, [campo]: valor } : end,
+            ),
+          }
+        : prev,
     );
   }
 
@@ -81,7 +129,7 @@ export function ClientsPage() {
     setCreateError(null);
     try {
       const enderecos = newEnderecos
-        .filter((end) => end.logradouro.trim() !== '' || end.cep.trim() !== '')
+        .filter((end) => !(end.removendo || end.logradouro.trim() === '' && end.cep.trim() === ''))
         .map((end, index) => ({
           logradouro: end.logradouro,
           numero: end.numero,
@@ -109,17 +157,67 @@ export function ClientsPage() {
   }
 
   function startEdit(c: ClienteAdmin) {
-    setEdit({ id: c.id, nome: c.nome, email: c.email ?? '', ativo: c.ativo });
+    setEdit({
+      id: c.id,
+      nome: c.nome,
+      email: c.email ?? '',
+      ativo: c.ativo,
+      enderecos: c.enderecos.map(daApi),
+    });
   }
 
   async function handleEditSave(e: FormEvent) {
     e.preventDefault();
     if (!edit) return;
+
+    const enderecoValido = (end: EnderecoEdicao) =>
+      CAMPOS_NOVO_ENDERECO.every((campo) => end[campo].trim() !== '');
+
+    const novosIncompletos = edit.enderecos.some(
+      (end) => !end.removendo && end.id === undefined && !enderecoValido(end),
+    );
+    if (novosIncompletos) {
+      setError(
+        'Para adicionar um novo endereço, preencha logradouro, número, bairro, cidade e CEP.',
+      );
+      return;
+    }
+
     try {
+      const enderecos: Array<{
+        id?: number;
+        remover?: boolean;
+        logradouro?: string;
+        numero?: string;
+        bairro?: string;
+        cidade?: string;
+        cep?: string;
+        complemento?: string | null;
+        referencia?: string | null;
+        principal?: boolean;
+      }> = [];
+      for (const end of edit.enderecos) {
+        if (end.removendo) {
+          if (end.id !== undefined) enderecos.push({ id: end.id, remover: true });
+        } else {
+          enderecos.push({
+            id: end.id,
+            logradouro: end.logradouro,
+            numero: end.numero,
+            bairro: end.bairro,
+            cidade: end.cidade,
+            cep: end.cep.replace(/\D/g, ''),
+            complemento: end.complemento.trim() === '' ? null : end.complemento,
+            referencia: end.referencia.trim() === '' ? null : end.referencia,
+            principal: end.principal,
+          });
+        }
+      }
       await updateClient(edit.id, {
         nome: edit.nome,
         email: edit.email.trim() === '' ? null : edit.email,
         ativo: edit.ativo,
+        enderecos: enderecos.length > 0 ? enderecos : undefined,
       });
       setEdit(null);
       load();
@@ -183,41 +281,41 @@ export function ClientsPage() {
             <label className="admin-field">
               <span>Logradouro</span>
               <input
-                aria-label={`Logradouro do endereço ${index + 1}`}
+                aria-label={rotuloEndereco('Logradouro', index + 1)}
                 value={end.logradouro}
-                onChange={(e) => atualizarEndereco(index, 'logradouro', e.target.value)}
+                onChange={(e) => atualizarNovoEndereco(index, 'logradouro', e.target.value)}
               />
             </label>
             <label className="admin-field">
               <span>Número</span>
               <input
-                aria-label={`Número do endereço ${index + 1}`}
+                aria-label={rotuloEndereco('Número', index + 1)}
                 value={end.numero}
-                onChange={(e) => atualizarEndereco(index, 'numero', e.target.value)}
+                onChange={(e) => atualizarNovoEndereco(index, 'numero', e.target.value)}
               />
             </label>
             <label className="admin-field">
               <span>Bairro</span>
               <input
-                aria-label={`Bairro do endereço ${index + 1}`}
+                aria-label={rotuloEndereco('Bairro', index + 1)}
                 value={end.bairro}
-                onChange={(e) => atualizarEndereco(index, 'bairro', e.target.value)}
+                onChange={(e) => atualizarNovoEndereco(index, 'bairro', e.target.value)}
               />
             </label>
             <label className="admin-field">
               <span>Cidade</span>
               <input
-                aria-label={`Cidade do endereço ${index + 1}`}
+                aria-label={rotuloEndereco('Cidade', index + 1)}
                 value={end.cidade}
-                onChange={(e) => atualizarEndereco(index, 'cidade', e.target.value)}
+                onChange={(e) => atualizarNovoEndereco(index, 'cidade', e.target.value)}
               />
             </label>
             <label className="admin-field">
               <span>CEP</span>
               <input
-                aria-label={`CEP do endereço ${index + 1}`}
+                aria-label={rotuloEndereco('CEP', index + 1)}
                 value={end.cep}
-                onChange={(e) => atualizarEndereco(index, 'cep', e.target.value)}
+                onChange={(e) => atualizarNovoEndereco(index, 'cep', e.target.value)}
               />
             </label>
             <button
@@ -235,7 +333,7 @@ export function ClientsPage() {
           <button
             type="button"
             className="btn btn--ghost"
-            onClick={() => setNewEnderecos((prev) => [...prev, vazio()])}
+            onClick={() => setNewEnderecos((prev) => [...prev, enderecoVazio()])}
           >
             + Adicionar endereço
           </button>
@@ -296,35 +394,182 @@ export function ClientsPage() {
                   edit?.id === c.id ? (
                     <tr key={c.id}>
                       <td colSpan={7}>
-                        <form className="admin-form-row" onSubmit={handleEditSave}>
-                          <input
-                            aria-label="Nome do cliente (edição)"
-                            value={edit.nome}
-                            onChange={(e) => setEdit({ ...edit, nome: e.target.value })}
-                          />
-                          <input
-                            aria-label="E-mail do cliente (edição)"
-                            value={edit.email}
-                            onChange={(e) => setEdit({ ...edit, email: e.target.value })}
-                          />
-                          <label className="admin-check">
-                            <input
-                              type="checkbox"
-                              checked={edit.ativo}
-                              onChange={(e) => setEdit({ ...edit, ativo: e.target.checked })}
-                            />
-                            <span>Ativo</span>
-                          </label>
-                          <button type="submit" className="btn btn--small">
-                            Salvar
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn--small btn--ghost"
-                            onClick={() => setEdit(null)}
-                          >
-                            Cancelar
-                          </button>
+                        <form className="admin-panel--form" onSubmit={handleEditSave}>
+                          <div className="admin-form-row">
+                            <label className="admin-field">
+                              <span>Nome</span>
+                              <input
+                                aria-label="Nome do cliente (edição)"
+                                value={edit.nome}
+                                onChange={(e) => setEdit({ ...edit, nome: e.target.value })}
+                              />
+                            </label>
+                            <label className="admin-field">
+                              <span>E-mail</span>
+                              <input
+                                aria-label="E-mail do cliente (edição)"
+                                value={edit.email}
+                                onChange={(e) => setEdit({ ...edit, email: e.target.value })}
+                              />
+                            </label>
+                            <label className="admin-check">
+                              <input
+                                type="checkbox"
+                                checked={edit.ativo}
+                                onChange={(e) => setEdit({ ...edit, ativo: e.target.checked })}
+                              />
+                              <span>Ativo</span>
+                            </label>
+                          </div>
+
+                          <h4 className="admin-panel__subtitle">Endereços</h4>
+                          {edit.enderecos.length === 0 && (
+                            <p className="admin-muted">Nenhum endereço cadastrado.</p>
+                          )}
+
+                          {edit.enderecos.map((end, index) => (
+                            <div className="admin-form-row" key={index}>
+                              <label className="admin-field">
+                                <span>Logradouro</span>
+                                <input
+                                  aria-label={rotuloEndereco('Logradouro', index + 1)}
+                                  value={end.logradouro}
+                                  disabled={end.removendo}
+                                  onChange={(e) =>
+                                    atualizarEnderecoEditado(index, 'logradouro', e.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="admin-field">
+                                <span>Número</span>
+                                <input
+                                  aria-label={rotuloEndereco('Número', index + 1)}
+                                  value={end.numero}
+                                  disabled={end.removendo}
+                                  onChange={(e) =>
+                                    atualizarEnderecoEditado(index, 'numero', e.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="admin-field">
+                                <span>Bairro</span>
+                                <input
+                                  aria-label={rotuloEndereco('Bairro', index + 1)}
+                                  value={end.bairro}
+                                  disabled={end.removendo}
+                                  onChange={(e) =>
+                                    atualizarEnderecoEditado(index, 'bairro', e.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="admin-field">
+                                <span>Cidade</span>
+                                <input
+                                  aria-label={rotuloEndereco('Cidade', index + 1)}
+                                  value={end.cidade}
+                                  disabled={end.removendo}
+                                  onChange={(e) =>
+                                    atualizarEnderecoEditado(index, 'cidade', e.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="admin-field">
+                                <span>CEP</span>
+                                <input
+                                  aria-label={rotuloEndereco('CEP', index + 1)}
+                                  value={end.cep}
+                                  disabled={end.removendo}
+                                  onChange={(e) =>
+                                    atualizarEnderecoEditado(index, 'cep', e.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="admin-field">
+                                <span>Complemento</span>
+                                <input
+                                  aria-label={rotuloEndereco('Complemento', index + 1)}
+                                  value={end.complemento}
+                                  disabled={end.removendo}
+                                  onChange={(e) =>
+                                    atualizarEnderecoEditado(index, 'complemento', e.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="admin-check">
+                                <input
+                                  type="checkbox"
+                                  checked={end.principal}
+                                  disabled={end.removendo}
+                                  onChange={(e) =>
+                                    atualizarEnderecoEditado(index, 'principal', e.target.checked)
+                                  }
+                                />
+                                <span>Principal</span>
+                              </label>
+                              {end.id === undefined ? (
+                                <button
+                                  type="button"
+                                  className="btn btn--small btn--ghost"
+                                  aria-label={`Remover (endereço ${index + 1})`}
+                                  onClick={() =>
+                                    setEdit((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            enderecos: prev.enderecos.filter(
+                                              (_, i) => i !== index,
+                                            ),
+                                          }
+                                        : prev,
+                                    )
+                                  }
+                                >
+                                  Remover
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn--small btn--ghost"
+                                  aria-label={`Remover (endereço ${index + 1})`}
+                                  onClick={() =>
+                                    atualizarEnderecoEditado(index, 'removendo', !end.removendo)
+                                  }
+                                >
+                                  {end.removendo ? 'Restaurar' : 'Remover'}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {edit.enderecos.some((x) => x.removendo) && (
+                            <p className="admin-muted">
+                              Endereço marcado para remoção será excluído ao salvar.
+                            </p>
+                          )}
+
+                          <div className="admin-form-row">
+                            <button
+                              type="button"
+                              className="btn btn--ghost"
+                              aria-label="+ Adicionar endereço (edição)"
+                              onClick={() =>
+                                setEdit((prev) =>
+                                  prev ? { ...prev, enderecos: [...prev.enderecos, enderecoVazio()] } : prev,
+                                )
+                              }
+                            >
+                              + Adicionar endereço
+                            </button>
+                            <button type="submit" className="btn btn--small">
+                              Salvar
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--small btn--ghost"
+                              onClick={() => setEdit(null)}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </form>
                       </td>
                     </tr>

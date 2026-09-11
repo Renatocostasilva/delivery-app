@@ -74,8 +74,8 @@ describe('ClientsPage', () => {
     fireEvent.change(screen.getByLabelText('Telefone do cliente'), { target: { value: '11988887777' } });
     fireEvent.change(screen.getByLabelText('E-mail do cliente'), { target: { value: 'novo@exemplo.com' } });
     fireEvent.click(screen.getByRole('button', { name: '+ Adicionar endereço' }));
-    fireEvent.change(screen.getByLabelText('Logradouro do endereço 1'), { target: { value: 'Rua B' } });
-    fireEvent.change(screen.getByLabelText('CEP do endereço 1'), { target: { value: '01234567' } });
+    fireEvent.change(screen.getByLabelText('Logradouro (endereço 1)'), { target: { value: 'Rua B' } });
+    fireEvent.change(screen.getByLabelText('CEP (endereço 1)'), { target: { value: '01234567' } });
     fireEvent.click(screen.getByRole('button', { name: 'Criar' }));
     await waitFor(() => {
       expect(created()).not.toBeNull();
@@ -129,5 +129,63 @@ describe('ClientsPage', () => {
       expect(patched()).not.toBeNull();
       expect(patched()?.nome).toBe('Ana Nova');
     });
+  });
+
+  it('adiciona um novo endereço ao editar cliente', async () => {
+    seedSession();
+    let body: { enderecos?: { id?: number; logradouro?: string; cep?: string }[] } | null = null;
+    const patched = () => body;
+    mockFetchHandler((url, init) => {
+      if (init?.method === 'PATCH' && url.includes('/api/admin/clients/')) {
+        body = init.body ? JSON.parse(init.body as string) : null;
+        return ok(clientesFixture.data[0]);
+      }
+      if (url.includes('/api/admin/clients')) return ok(clientesFixture);
+      return ok({});
+    });
+    renderAdmin('/admin/clientes');
+    await waitFor(() => {
+      expect(screen.getByText('Ana Souza')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByText('Editar'));
+    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar endereço (edição)' }));
+    fireEvent.change(screen.getByLabelText('Logradouro (endereço 2)'), { target: { value: 'Rua Nova' } });
+    fireEvent.change(screen.getByLabelText('Número (endereço 2)'), { target: { value: '99' } });
+    fireEvent.change(screen.getByLabelText('Bairro (endereço 2)'), { target: { value: 'Centro' } });
+    fireEvent.change(screen.getByLabelText('Cidade (endereço 2)'), { target: { value: 'São Paulo' } });
+    fireEvent.change(screen.getByLabelText('CEP (endereço 2)'), { target: { value: '05407000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(patched()).not.toBeNull();
+    });
+    const novos = patched()?.enderecos?.filter((e) => e.id === undefined) ?? [];
+    expect(novos).toHaveLength(1);
+    expect(novos[0]?.logradouro).toBe('Rua Nova');
+    expect(novos[0]?.cep).toBe('05407000');
+  });
+
+  it('remove um endereço existente ao editar cliente', async () => {
+    seedSession();
+    let body: { enderecos?: { id?: number; remover?: boolean }[] } | null = null;
+    const patched = () => body;
+    mockFetchHandler((url, init) => {
+      if (init?.method === 'PATCH' && url.includes('/api/admin/clients/')) {
+        body = init.body ? JSON.parse(init.body as string) : null;
+        return ok(clientesFixture.data[0]);
+      }
+      if (url.includes('/api/admin/clients')) return ok(clientesFixture);
+      return ok({});
+    });
+    renderAdmin('/admin/clientes');
+    await waitFor(() => {
+      expect(screen.getByText('Ana Souza')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByText('Editar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Remover (endereço 1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(patched()).not.toBeNull();
+    });
+    expect(patched()?.enderecos).toEqual([{ id: 1, remover: true }]);
   });
 });
