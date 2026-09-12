@@ -341,7 +341,27 @@ export async function criarCobranca(
     pagamento.idGateway &&
     emAberto.includes(pagamento.estadoPagamento as (typeof emAberto)[number])
   ) {
-    return montarResultado(pedido, pedido.pagamentos[0], false);
+    const metodoAtual = pagamento.meioPagamento ?? "";
+    const mesmoMetodo =
+      (input.metodo === "pix" && metodoAtual === "pix") ||
+      (input.metodo === "cartao" && metodoAtual !== "pix");
+    if (mesmoMetodo) {
+      return montarResultado(pedido, pedido.pagamentos[0], false);
+    }
+
+    // Troca de método em aberto (ex.: PIX → cartão ou cartão → PIX):
+    // limpa os campos do gateway para permitir gerar uma nova cobrança.
+    await prisma.pagamento.update({
+      where: { id: pagamento.id },
+      data: {
+        idGateway: null,
+        meioPagamento: null,
+        qrCode: null,
+        qrCodeBase64: null,
+        expiraEm: null,
+        dadosGateway: Prisma.DbNull,
+      },
+    });
   }
 
   const descricao = `Pedido ${pedido.numeroPedido}`;
