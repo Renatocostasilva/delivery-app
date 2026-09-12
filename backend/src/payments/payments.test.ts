@@ -145,6 +145,31 @@ describe("POST /api/payments/:pedidoId/cobrancas — PIX", () => {
     expect(r2.body.criada).toBe(false);
     expect(r2.body.pagamento.idGateway).toBe(r1.body.pagamento.idGateway);
   });
+
+  it("troca de PIX para cartão quando a cobrança ainda está em aberto", async () => {
+    fake.updateConfig({ cartaoStatus: "APROVADO" });
+    const { pedido } = await seedPedido();
+
+    // 1ª: cobrança PIX criada
+    const r1 = await request(app)
+      .post(`/api/payments/${pedido.id}/cobrancas`)
+      .send({ metodo: "pix" })
+      .expect(201);
+    expect(r1.body.criada).toBe(true);
+    expect(r1.body.pagamento.meioPagamento).toBe("pix");
+    const idPix = r1.body.pagamento.idGateway;
+
+    // 2ª: troca para cartão → nova cobrança (não idempotente)
+    const r2 = await request(app)
+      .post(`/api/payments/${pedido.id}/cobrancas`)
+      .send({ metodo: "cartao", token: "fake-token-visa", paymentMethodId: "visa" })
+      .expect(201);
+
+    expect(r2.body.criada).toBe(true);
+    expect(r2.body.pagamento.meioPagamento).toBe("visa");
+    expect(r2.body.pagamento.idGateway).not.toBe(idPix);
+    expect(r2.body.pagamento.estadoPagamento).toBe("APROVADO");
+  });
 });
 
 describe("POST /api/payments/:pedidoId/cobrancas — Cartão", () => {

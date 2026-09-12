@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useCheckout } from '../../context/CheckoutContext';
 import * as api from '../../api/checkout';
 import { ApiError } from '../../api/checkout';
-import type { ResultadoCobranca, EstadoPagamento } from '../../api/checkout';
+import type { ResultadoCobranca, EstadoPagamento, FormaPagamento } from '../../api/checkout';
 import { formatBRL } from '../../lib/format';
 
 const POLL_INTERVAL_MS = 4000;
@@ -20,11 +20,19 @@ const LABELS: Record<EstadoPagamento, string> = {
 
 const FALHAS: EstadoPagamento[] = ['RECUSADO', 'CANCELADO', 'EXPIRADO'];
 
+const FORMAS_PAGAVEIS: { valor: FormaPagamento; rotulo: string }[] = [
+  { valor: 'PIX', rotulo: 'Pix' },
+  { valor: 'CARTAO_CREDITO', rotulo: 'Cartão de Crédito' },
+  { valor: 'CARTAO_DEBITO', rotulo: 'Cartão de Débito' },
+];
+
 export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) {
   const navigate = useNavigate();
   const { pedidoId } = useParams<{ pedidoId: string }>();
   const { cliente, pedidoConfirmado } = useCheckout();
-  const formaPagamento = pedidoConfirmado?.formaPagamento ?? 'PIX';
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>(
+    pedidoConfirmado?.formaPagamento ?? 'PIX',
+  );
   const isCartao = formaPagamento === 'CARTAO_CREDITO' || formaPagamento === 'CARTAO_DEBITO';
 
   const id = Number(pedidoId);
@@ -33,6 +41,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(true);
   const [copiado, setCopiado] = useState(false);
+  const [cardBrickKey, setCardBrickKey] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -70,12 +79,28 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     }
   };
 
+  function trocarFormaPagamento(f: FormaPagamento) {
+    if (f === formaPagamento) return;
+    setFormaPagamento(f);
+    setCobranca(null);
+    setStatus('INICIADO');
+    setErro(null);
+    if (f === 'PIX') {
+      void iniciarCobranca();
+    } else {
+      setCriando(false);
+      setCardBrickKey((k) => k + 1); // força remontar o brick do cartão
+    }
+  }
+
   useEffect(() => {
     iniciarCobranca();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
+    // Cartão: o polling não roda — o status chega pelo webhook/pós-submit.
+    if (isCartao) return;
     if (FALHAS.includes(status)) return;
     if (status === 'APROVADO') return;
 
@@ -93,7 +118,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [id, status, pollMs]);
+  }, [id, status, pollMs, isCartao]);
 
   useEffect(() => {
     if (status === 'APROVADO') {
@@ -148,6 +173,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
       setErro('Cartão indisponível: chave pública do MercadoPago não configurada.');
       return;
     }
+    setErro(null);
     const carregarSdk = () =>
       new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
@@ -202,7 +228,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCartao]);
+  }, [isCartao, cardBrickKey]);
 
   function reprocessar() {
     if (isCartao) {
@@ -212,23 +238,27 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     void iniciarCobranca();
   }
 
-  if (erro && !cobranca) {
-    return (
-      <div className="payment">
-        <h1 className="payment__title">Pagamento</h1>
-        <div className="payment__error" role="alert">
-          <p>{erro}</p>
-          <button type="button" className="checkout-step__btn" onClick={reprocessar}>
-            Tentar novamente
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="payment">
       <h1 className="payment__title">Pagamento</h1>
+
+      <fieldset className="checkout-form__field checkout-payment">
+        <legend className="checkout-form__label">Forma de pagamento</legend>
+        <div className="checkout-payment__options">
+          {FORMAS_PAGAVEIS.map((f) => (
+            <label key={f.valor} className="checkout-payment__option">
+              <input
+                type="radio"
+                name="payment-forma"
+                value={f.valor}
+                checked={formaPagamento === f.valor}
+                onChange={() => trocarFormaPagamento(f.valor)}
+              />
+              <span>{f.rotulo}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       {cobranca && (
         <div className="payment__info">
@@ -237,12 +267,26 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
         </div>
       )}
 
-      {isCartao && (
+      {erro && !cobranca && (
+        <div className="payment__error" role="alert">
+          <p>{erro}</p>
+          <button type="button" className="checkout-step__btn" onClick={reprocessar}>
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {isCartao && !erro && (
         <div className="payment__card">
           <p className="payment__label">
             {formaPagamento === 'CARTAO_CREDITO' ? 'Cartão de crédito' : 'Cartão de débito'}
           </p>
-          <div id="mp-card-brick" className="payment__card-brick" aria-label="Formulário de cartão MercadoPago" />
+          <div
+            key={cardBrickKey}
+            id="mp-card-brick"
+            className="payment__card-brick"
+            aria-label="Formulário de cartão MercadoPago"
+          />
           <p className="checkout-form__hint">
             O cartão é tokenizado no navegador pelo MercadoPago — os dados não passam pelo servidor.
           </p>
