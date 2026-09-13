@@ -46,6 +46,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   const [criando, setCriando] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const brickDone = useRef(false);
 
   useEffect(() => {
     if (formaPagamento === 'DINHEIRO') {
@@ -158,7 +159,13 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   // Cartão: monta o MercadoPago Bricks (CardPayment) para tokenizar o cartão no
   // navegador (o número cru nunca toca nosso backend — requisito PCI).
   useEffect(() => {
-    if (!isCartao) return;
+    if (!isCartao) {
+      brickDone.current = false;
+      return;
+    }
+    if (brickDone.current) return; // evita duplicar o brick (StrictMode/2ª montagem)
+    const container = document.getElementById('mp-card-brick');
+    if (container) container.innerHTML = '';
     let cancelado = false;
     const pubKey = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
     if (!pubKey) {
@@ -228,6 +235,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
               setErro(err?.message ?? 'Erro ao processar o cartão.'),
           },
         });
+        brickDone.current = true;
       } catch (e: unknown) {
         if (!cancelado) {
           setErro(e instanceof Error ? e.message : 'Falha ao carregar pagamento por cartão.');
