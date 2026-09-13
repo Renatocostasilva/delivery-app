@@ -218,7 +218,12 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
           return;
         }
         await bricks.create('cardPayment', 'mp-card-brick', {
-          initialization: { amount },
+          initialization: {
+            amount,
+            payer: {
+              email: cliente?.email || pedidoConfirmado?.cliente?.email || undefined,
+            },
+          },
           callbacks: {
             onReady: () => {
               // brick montado
@@ -292,7 +297,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
         </div>
       )}
 
-      {erro && !cobranca && (
+      {erro && !cobranca && !isCartao && (
         <div className="payment__error" role="alert">
           <p>{erro}</p>
           <button type="button" className="checkout-step__btn" onClick={reprocessar}>
