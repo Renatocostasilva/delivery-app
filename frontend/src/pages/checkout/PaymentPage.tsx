@@ -118,6 +118,19 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     }
   }, [status, id, navigate]);
 
+  function brandFromBin(bin: string): string {
+    const b = bin || '';
+    if (/^4/.test(b)) return 'visa';
+    if (/^(34|37)/.test(b)) return 'amex';
+    if (
+      /^(51|52|53|54|55)/.test(b) ||
+      (Number(b.slice(0, 4)) >= 2221 && Number(b.slice(0, 4)) <= 2720)
+    )
+      return 'master';
+    if (/^6/.test(b)) return 'elo';
+    return '';
+  }
+
   function copiar() {
     if (cobranca?.pagamento.qrCode) {
       navigator.clipboard?.writeText(cobranca.pagamento.qrCode).then(() => {
@@ -232,18 +245,24 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
               token?: string;
               paymentMethodId?: string;
               installments?: number;
+              bin?: string;
+              lastFourDigits?: string;
             }) => {
-              if (!cardData.token || !cardData.paymentMethodId) {
-                console.warn('[cartao] MP não retornou token:', cardData);
-                const resp = JSON.stringify(cardData ?? {}).slice(0, 350);
+              console.warn('[cartao] cardData completo:', cardData);
+              if (!cardData.token) {
                 setErro(
-                  'Falha ao gerar token do cartão. Resposta do MercadoPago: ' +
-                    resp +
-                    '. Confira os dados. (envie este texto ao suporte)',
+                  'Falha ao gerar token do cartão. O MercadoPago não devolveu um token. Confira os dados e tente de novo.',
                 );
                 return;
               }
-              await pagarComCartao(cardData.token, cardData.paymentMethodId, cardData.installments);
+              // O brick pode não trazer paymentMethodId; deriva da bandeira pelo bin.
+              const paymentMethodId =
+                cardData.paymentMethodId || brandFromBin(cardData.bin || '');
+              await pagarComCartao(
+                cardData.token,
+                paymentMethodId,
+                cardData.installments ?? 1,
+              );
             },
             onError: (err: { message?: string }) => {
               console.warn('[cartao] MP brick onError:', err);
