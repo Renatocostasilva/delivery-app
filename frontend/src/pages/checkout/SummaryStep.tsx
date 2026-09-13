@@ -80,7 +80,7 @@ export function SummaryStep() {
         if (formaAtual === 'DINHEIRO') {
           navigate(`/pedido/${pedido.id}`);
         } else {
-          navigate(`/checkout/pagamento/${pedido.id}`);
+          navigate(`/checkout/pagamento/${pedido.id}?forma=${formaAtual}`);
         }
       })
       .catch((err: unknown) => {

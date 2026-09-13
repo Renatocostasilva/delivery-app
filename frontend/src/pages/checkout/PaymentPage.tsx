@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCheckout } from '../../context/CheckoutContext';
 import * as api from '../../api/checkout';
 import { ApiError } from '../../api/checkout';
@@ -30,9 +30,13 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   const navigate = useNavigate();
   const { pedidoId } = useParams<{ pedidoId: string }>();
   const { cliente, pedidoConfirmado } = useCheckout();
-  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>(
-    pedidoConfirmado?.formaPagamento ?? 'PIX',
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Forma de pagamento: prioriza a URL (?forma=) — à prova de timing de contexto —
+  // depois o pedido confirmado; padrão PIX. Derivada (não congelada em useState).
+  const formaPagamento: FormaPagamento =
+    (searchParams.get('forma') as FormaPagamento | null) ??
+    pedidoConfirmado?.formaPagamento ??
+    'PIX';
   const isCartao = formaPagamento === 'CARTAO_CREDITO' || formaPagamento === 'CARTAO_DEBITO';
 
   const id = Number(pedidoId);
@@ -41,7 +45,6 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(true);
   const [copiado, setCopiado] = useState(false);
-  const [cardBrickKey, setCardBrickKey] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -55,7 +58,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     }
     iniciarCobranca();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, formaPagamento, isCartao]);
 
   const iniciarCobranca = async () => {
     setCriando(true);
@@ -81,22 +84,11 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
 
   function trocarFormaPagamento(f: FormaPagamento) {
     if (f === formaPagamento) return;
-    setFormaPagamento(f);
     setCobranca(null);
     setStatus('INICIADO');
     setErro(null);
-    if (f === 'PIX') {
-      void iniciarCobranca();
-    } else {
-      setCriando(false);
-      setCardBrickKey((k) => k + 1); // força remontar o brick do cartão
-    }
+    setSearchParams({ forma: f });
   }
-
-  useEffect(() => {
-    iniciarCobranca();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
 
   useEffect(() => {
     // Cartão: o polling não roda — o status chega pelo webhook/pós-submit.
@@ -176,6 +168,10 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     setErro(null);
     const carregarSdk = () =>
       new Promise<void>((resolve, reject) => {
+        if ((window as unknown as { MercadoPago?: unknown }).MercadoPago) {
+          resolve();
+          return;
+        }
         const s = document.createElement('script');
         s.src = 'https://sdk.mercadopago.com/js/v2';
         s.onload = () => resolve();
@@ -185,9 +181,8 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     (async () => {
       try {
         await carregarSdk();
-        const mp = (window as unknown as {
-          Mercadopago: {
-            setPublishableKey: (k: string) => void;
+        const MP = new (window as unknown as {
+          MercadoPago: new (key: string) => {
             bricks: () => {
               create: (
                 kind: string,
@@ -196,13 +191,28 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
               ) => Promise<unknown>;
             };
           };
-        }).Mercadopago;
-        mp.setPublishableKey(pubKey);
-        const bricks = mp.bricks();
-        const amount = Number(pedidoConfirmado?.total ?? 0);
+        }).MercadoPago(pubKey);
+        const bricks = MP.bricks();
+        // Valor do pedido: tenta pelo contexto; se ausente, busca no backend.
+        let amount = Number(pedidoConfirmado?.total ?? 0);
+        if (!amount || Number.isNaN(amount)) {
+          try {
+            const consulta = await api.consultarPagamento(id);
+            amount = Number(consulta.pedido.total);
+          } catch {
+            // mantém amount para a checagem abaixo
+          }
+        }
+        if (!amount || Number.isNaN(amount)) {
+          setErro('Não foi possível obter o valor do pedido para o cartão.');
+          return;
+        }
         await bricks.create('cardPayment', 'mp-card-brick', {
           initialization: { amount },
           callbacks: {
+            onReady: () => {
+              // brick montado
+            },
             onSubmit: async (cardData: {
               token?: string;
               paymentMethodId?: string;
@@ -228,7 +238,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCartao, cardBrickKey]);
+  }, [isCartao, formaPagamento]);
 
   function reprocessar() {
     if (isCartao) {
@@ -282,7 +292,6 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
             {formaPagamento === 'CARTAO_CREDITO' ? 'Cartão de crédito' : 'Cartão de débito'}
           </p>
           <div
-            key={cardBrickKey}
             id="mp-card-brick"
             className="payment__card-brick"
             aria-label="Formulário de cartão MercadoPago"
