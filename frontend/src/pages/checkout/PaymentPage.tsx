@@ -229,13 +229,18 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
               installments?: number;
             }) => {
               if (!cardData.token || !cardData.paymentMethodId) {
-                setErro('Não foi possível gerar o token do cartão.');
+                console.warn('[cartao] MP não retornou token:', cardData);
+                setErro(
+                  'Não foi possível gerar o token do cartão. Confira número, validade, CVV e CPF do titular e tente de novo.',
+                );
                 return;
               }
               await pagarComCartao(cardData.token, cardData.paymentMethodId, cardData.installments);
             },
-            onError: (err: { message?: string }) =>
-              setErro(err?.message ?? 'Erro ao processar o cartão.'),
+            onError: (err: { message?: string }) => {
+              console.warn('[cartao] MP brick onError:', err);
+              setErro(err?.message ?? 'Erro ao processar o cartão (tokenização).');
+            },
           },
         });
       } catch (e: unknown) {
@@ -296,8 +301,9 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
         </div>
       )}
 
-      {isCartao && !erro && (
+      {isCartao && (
         <div className="payment__card">
+          {erro && <p className="payment__status payment__status--fail">{erro}</p>}
           <p className="payment__label">
             {formaPagamento === 'CARTAO_CREDITO' ? 'Cartão de crédito' : 'Cartão de débito'}
           </p>
