@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getHome } from '../api/catalog';
 import type { HomeData } from '../api/types';
 import { ProductCard } from '../components/ProductCard';
+import { CategoryChips } from '../components/CategoryChips';
 
 function Section({
   title,
@@ -56,6 +57,8 @@ export function Home() {
 
   return (
     <div className="home">
+      <CategoryChips categorias={data.categorias} />
+
       {data.destaques.length > 0 && (
         <Section title="Destaques">
           {data.destaques.map((p) => (
@@ -79,16 +82,6 @@ export function Home() {
           ))}
         </Section>
       )}
-
-      <Section title="Categorias" link="/catalogo">
-        <div className="home__categories">
-          {data.categorias.map((cat) => (
-            <Link key={cat.id} to={`/categoria/${cat.slug}`} className="home__category-card">
-              <span>{cat.nome}</span>
-            </Link>
-          ))}
-        </div>
-      </Section>
     </div>
   );
 }
