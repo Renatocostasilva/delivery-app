@@ -161,11 +161,14 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
     if (!isCartao) {
       return;
     }
-    // Trava no DOM (não em ref): sobrevive ao double-mount do StrictMode,
-    // garantindo que o brick NÃO seja criado duas vezes no mesmo container.
+    // Trava no DOM (não em ref): sobrevive ao double-mount do StrictMode.
+    // Marcada SINCRONAMENTE, antes de qualquer await, para não haver corrida.
     const container = document.getElementById('mp-card-brick');
     if (container?.dataset.mpMounted) return;
-    if (container) container.innerHTML = '';
+    if (container) {
+      container.innerHTML = '';
+      container.dataset.mpMounted = '1';
+    }
     let cancelado = false;
     const pubKey = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
     if (!pubKey) {
@@ -235,7 +238,6 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
               setErro(err?.message ?? 'Erro ao processar o cartão.'),
           },
         });
-        if (container) container.dataset.mpMounted = '1';
       } catch (e: unknown) {
         if (!cancelado) {
           setErro(e instanceof Error ? e.message : 'Falha ao carregar pagamento por cartão.');
