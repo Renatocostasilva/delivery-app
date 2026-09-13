@@ -46,7 +46,6 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   const [criando, setCriando] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const brickDone = useRef(false);
 
   useEffect(() => {
     if (formaPagamento === 'DINHEIRO') {
@@ -160,11 +159,12 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
   // navegador (o número cru nunca toca nosso backend — requisito PCI).
   useEffect(() => {
     if (!isCartao) {
-      brickDone.current = false;
       return;
     }
-    if (brickDone.current) return; // evita duplicar o brick (StrictMode/2ª montagem)
+    // Trava no DOM (não em ref): sobrevive ao double-mount do StrictMode,
+    // garantindo que o brick NÃO seja criado duas vezes no mesmo container.
     const container = document.getElementById('mp-card-brick');
+    if (container?.dataset.mpMounted) return;
     if (container) container.innerHTML = '';
     let cancelado = false;
     const pubKey = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
@@ -235,7 +235,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
               setErro(err?.message ?? 'Erro ao processar o cartão.'),
           },
         });
-        brickDone.current = true;
+        if (container) container.dataset.mpMounted = '1';
       } catch (e: unknown) {
         if (!cancelado) {
           setErro(e instanceof Error ? e.message : 'Falha ao carregar pagamento por cartão.');
