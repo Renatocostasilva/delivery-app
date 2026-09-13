@@ -247,6 +247,7 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
               installments?: number;
               bin?: string;
               lastFourDigits?: string;
+              [k: string]: unknown;
             }) => {
               console.warn('[cartao] cardData completo:', cardData);
               if (!cardData.token) {
@@ -255,14 +256,13 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
                 );
                 return;
               }
-              // O brick pode não trazer paymentMethodId; deriva da bandeira pelo bin.
+              // O SDK do MP devolve os campos em snake_case e/ou camelCase.
               const paymentMethodId =
-                cardData.paymentMethodId || brandFromBin(cardData.bin || '');
-              await pagarComCartao(
-                cardData.token,
-                paymentMethodId,
-                cardData.installments ?? 1,
-              );
+                String(cardData.paymentMethodId || cardData.payment_method_id || '') ||
+                brandFromBin(String(cardData.bin || cardData.bin || ''));
+              const installments =
+                Number(cardData.installments ?? cardData.installments ?? 1) || 1;
+              await pagarComCartao(cardData.token, paymentMethodId, installments);
             },
             onError: (err: { message?: string }) => {
               console.warn('[cartao] MP brick onError:', err);
