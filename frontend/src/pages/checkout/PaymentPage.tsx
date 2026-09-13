@@ -235,8 +235,11 @@ export function PaymentPage({ pollMs = POLL_INTERVAL_MS }: { pollMs?: number }) 
             }) => {
               if (!cardData.token || !cardData.paymentMethodId) {
                 console.warn('[cartao] MP não retornou token:', cardData);
+                const resp = JSON.stringify(cardData ?? {}).slice(0, 350);
                 setErro(
-                  'Não foi possível gerar o token do cartão. Confira número, validade, CVV e CPF do titular e tente de novo.',
+                  'Falha ao gerar token do cartão. Resposta do MercadoPago: ' +
+                    resp +
+                    '. Confira os dados. (envie este texto ao suporte)',
                 );
                 return;
               }
